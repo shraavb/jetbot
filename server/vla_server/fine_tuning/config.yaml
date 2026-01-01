@@ -1,0 +1,41 @@
+# Fine-tuning configuration for JetBot OpenVLA
+
+model:
+  base_model_id: "openvla/openvla-7b"
+  action_dim: 2  # (left_speed, right_speed)
+  freeze_backbone: true  # Only train action head initially
+
+training:
+  num_epochs: 10
+  batch_size: 4  # Adjust based on GPU memory
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  warmup_steps: 100
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+
+  # Checkpointing
+  save_every_n_epochs: 2
+  save_dir: "./models/jetbot_openvla"
+
+data:
+  train_dir: "./data/jetbot_train"
+  val_dir: "./data/jetbot_val"
+  image_size: 224
+  val_ratio: 0.1  # If using single directory with split
+
+# LoRA configuration (optional, for parameter-efficient fine-tuning)
+lora:
+  enabled: false
+  r: 16
+  lora_alpha: 32
+  target_modules:
+    - q_proj
+    - v_proj
+  lora_dropout: 0.1
+  bias: "none"
+
+# Logging
+logging:
+  log_every_n_steps: 10
+  eval_every_n_steps: 100
