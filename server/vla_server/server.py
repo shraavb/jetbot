@@ -3,7 +3,25 @@ import time
 import io
 import argparse
 from PIL import Image
-from .openvla_wrapper import OpenVLAWrapper
+
+
+def load_vla_model(model_type: str, **kwargs):
+    """
+    Factory function to load VLA model based on type.
+
+    Args:
+        model_type: 'openvla' or 'smolvla'
+        **kwargs: Arguments passed to the model wrapper
+
+    Returns:
+        VLA model wrapper instance
+    """
+    if model_type == "smolvla":
+        from .smolvla_wrapper import SmolVLAWrapper
+        return SmolVLAWrapper(**kwargs)
+    else:
+        from .openvla_wrapper import OpenVLAWrapper
+        return OpenVLAWrapper(**kwargs)
 
 
 class VLAServer:
@@ -25,7 +43,8 @@ class VLAServer:
     def __init__(
         self,
         port: int = 5555,
-        model_id: str = "openvla/openvla-7b",
+        model_type: str = "smolvla",
+        model_id: str = None,
         fine_tuned: bool = False,
         device: str = "auto",
         load_in_4bit: bool = False,
@@ -36,6 +55,7 @@ class VLAServer:
 
         Args:
             port: ZMQ port to listen on
+            model_type: Model type ('openvla' or 'smolvla')
             model_id: HuggingFace model ID or path to fine-tuned model
             fine_tuned: Whether using a fine-tuned JetBot model
             device: Device to run on ('auto', 'cuda', 'mps', 'cpu')
@@ -43,6 +63,7 @@ class VLAServer:
             load_in_8bit: Use 8-bit quantization (CUDA only)
         """
         self.port = port
+        self.model_type = model_type
         self.model_id = model_id
         self.fine_tuned = fine_tuned
 
@@ -52,13 +73,19 @@ class VLAServer:
 
         # Initialize model
         print(f"Initializing VLA server on port {port}", flush=True)
-        self.vla = OpenVLAWrapper(
-            model_id=model_id,
-            device=device,
-            fine_tuned=fine_tuned,
-            load_in_4bit=load_in_4bit,
-            load_in_8bit=load_in_8bit
-        )
+        print(f"Model type: {model_type}", flush=True)
+
+        # Build model kwargs
+        model_kwargs = {
+            'device': device,
+            'fine_tuned': fine_tuned,
+            'load_in_4bit': load_in_4bit,
+            'load_in_8bit': load_in_8bit
+        }
+        if model_id:
+            model_kwargs['model_id'] = model_id
+
+        self.vla = load_vla_model(model_type, **model_kwargs)
 
         # Run warmup inference to avoid slow first request (especially on MPS)
         print("Running warmup inference (this may take several minutes on first run)...", flush=True)
@@ -168,9 +195,15 @@ def main():
         help='ZMQ port to listen on'
     )
     parser.add_argument(
+        '--model-type',
+        default='smolvla',
+        choices=['openvla', 'smolvla'],
+        help='VLA model type (smolvla is lightweight, openvla is full 7B)'
+    )
+    parser.add_argument(
         '--model',
-        default='openvla/openvla-7b',
-        help='HuggingFace model ID or path to fine-tuned model'
+        default=None,
+        help='HuggingFace model ID or path to fine-tuned model (uses default for model-type if not specified)'
     )
     parser.add_argument(
         '--fine-tuned',
@@ -187,18 +220,19 @@ def main():
         '--4bit',
         dest='load_in_4bit',
         action='store_true',
-        help='Use 4-bit quantization to reduce memory (CUDA only, ~4GB)'
+        help='Use 4-bit quantization to reduce memory (CUDA only)'
     )
     parser.add_argument(
         '--8bit',
         dest='load_in_8bit',
         action='store_true',
-        help='Use 8-bit quantization to reduce memory (CUDA only, ~8GB)'
+        help='Use 8-bit quantization to reduce memory (CUDA only)'
     )
     args = parser.parse_args()
 
     server = VLAServer(
         port=args.port,
+        model_type=args.model_type,
         model_id=args.model,
         fine_tuned=args.fine_tuned,
         device=args.device,

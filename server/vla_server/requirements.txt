@@ -19,3 +19,14 @@ numpy>=1.24.0
 
 # Optional: for faster image loading
 opencv-python>=4.8.0
+
+# SmolVLA dependencies
+einops>=0.7.0
+timm>=0.9.10,<1.0.0
+torchvision>=0.15.0
+
+# Optional: lerobot for native SmolVLA support
+# pip install lerobot
+
+# Optional: for quantization (CUDA only)
+# bitsandbytes>=0.41.0
