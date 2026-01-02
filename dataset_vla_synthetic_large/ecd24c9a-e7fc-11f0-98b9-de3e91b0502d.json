@@ -1,0 +1,8 @@
+{
+  "instruction": "turn right",
+  "action": {
+    "left_speed": 0.43046694149379594,
+    "right_speed": -0.2235289992656716
+  },
+  "source": "synthetic"
+}

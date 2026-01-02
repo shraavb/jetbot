@@ -1,0 +1,8 @@
+{
+  "instruction": "go forward",
+  "action": {
+    "left_speed": 0.4523168104165254,
+    "right_speed": 0.42135778325504997
+  },
+  "source": "synthetic"
+}

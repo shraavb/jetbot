@@ -1,0 +1,8 @@
+{
+  "instruction": "navigate forward avoiding obstacles",
+  "action": {
+    "left_speed": 0.45079615211903534,
+    "right_speed": 0.2851877481748765
+  },
+  "source": "synthetic"
+}

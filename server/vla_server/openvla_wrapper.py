@@ -40,6 +40,20 @@ class OpenVLAWrapper:
         robot.set_motors(left, right)
     """
 
+    # Available unnorm_key options from OpenVLA training datasets
+    UNNORM_KEYS = [
+        'bridge_orig',  # Good for navigation-like tasks
+        'fractal20220817_data',  # Google RT-1 data
+        'kuka',
+        'bc_z',
+        'jaco_play',
+        'berkeley_cable_routing',
+        'roboturk',
+        'viola',
+        'toto',
+        'berkeley_autolab_ur5',
+    ]
+
     def __init__(
         self,
         model_id: str = "openvla/openvla-7b",
@@ -47,7 +61,8 @@ class OpenVLAWrapper:
         torch_dtype: Optional[torch.dtype] = None,
         fine_tuned: bool = False,
         load_in_4bit: bool = False,
-        load_in_8bit: bool = False
+        load_in_8bit: bool = False,
+        unnorm_key: str = "bridge_orig"
     ):
         """
         Initialize OpenVLA model.
@@ -59,12 +74,14 @@ class OpenVLAWrapper:
             fine_tuned: Whether this is a fine-tuned JetBot model (2-DoF output)
             load_in_4bit: Use 4-bit quantization (requires bitsandbytes, CUDA only)
             load_in_8bit: Use 8-bit quantization (requires bitsandbytes, CUDA only)
+            unnorm_key: Dataset key for action unnormalization (default: 'bridge_orig')
         """
         # Auto-detect device
         if device == "auto":
             device = get_device()
         self.device = device
         self.fine_tuned = fine_tuned
+        self.unnorm_key = unnorm_key
 
         # Auto-detect dtype based on device
         if torch_dtype is None:
@@ -75,8 +92,8 @@ class OpenVLAWrapper:
             else:
                 torch_dtype = torch.float32
 
-        print(f"Loading OpenVLA model: {model_id}")
-        print(f"Device: {device}, dtype: {torch_dtype}")
+        print(f"Loading OpenVLA model: {model_id}", flush=True)
+        print(f"Device: {device}, dtype: {torch_dtype}", flush=True)
 
         from transformers import AutoModelForVision2Seq, AutoProcessor
 
@@ -126,7 +143,7 @@ class OpenVLAWrapper:
 
         # Move to device if needed (MPS or explicit CUDA without device_map)
         if device == "mps":
-            print("Moving model to MPS (Apple Silicon)...")
+            print("Moving model to MPS (Apple Silicon)...", flush=True)
             self.model = self.model.to(device)
         elif device == "cuda" and not hasattr(self.model, 'hf_device_map'):
             self.model = self.model.to(device)
@@ -138,7 +155,7 @@ class OpenVLAWrapper:
             mem_gb = torch.cuda.max_memory_allocated() / 1e9
             print(f"GPU memory used: {mem_gb:.1f} GB")
 
-        print("OpenVLA model loaded successfully")
+        print("OpenVLA model loaded successfully", flush=True)
 
     def predict(
         self,
@@ -171,7 +188,12 @@ class OpenVLAWrapper:
 
         # Run inference
         with torch.no_grad():
-            action = self.model.predict_action(**inputs)
+            if self.fine_tuned:
+                # Fine-tuned model doesn't need unnorm_key
+                action = self.model.predict_action(**inputs)
+            else:
+                # Base model needs unnorm_key to select normalization statistics
+                action = self.model.predict_action(**inputs, unnorm_key=self.unnorm_key)
 
         # Convert to numpy
         if isinstance(action, torch.Tensor):
@@ -224,7 +246,10 @@ class OpenVLAWrapper:
                   for k, v in inputs.items()}
 
         with torch.no_grad():
-            action = self.model.predict_action(**inputs)
+            if self.fine_tuned:
+                action = self.model.predict_action(**inputs)
+            else:
+                action = self.model.predict_action(**inputs, unnorm_key=self.unnorm_key)
 
         if isinstance(action, torch.Tensor):
             action = action.cpu().numpy()

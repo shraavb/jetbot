@@ -1,0 +1,8 @@
+{
+  "instruction": "stop",
+  "action": {
+    "left_speed": 0.06189209093288877,
+    "right_speed": 0.07906204650327038
+  },
+  "source": "synthetic"
+}

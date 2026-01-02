@@ -1,0 +1,8 @@
+{
+  "instruction": "wait",
+  "action": {
+    "left_speed": -0.12147521643548403,
+    "right_speed": -0.05807042007132949
+  },
+  "source": "synthetic"
+}

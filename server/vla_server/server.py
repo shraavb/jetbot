@@ -51,7 +51,7 @@ class VLAServer:
         self.total_inference_time = 0.0
 
         # Initialize model
-        print(f"Initializing VLA server on port {port}")
+        print(f"Initializing VLA server on port {port}", flush=True)
         self.vla = OpenVLAWrapper(
             model_id=model_id,
             device=device,
@@ -64,7 +64,7 @@ class VLAServer:
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
         self.socket.bind(f"tcp://*:{port}")
-        print(f"VLA server listening on port {port}")
+        print(f"VLA server listening on port {port}", flush=True)
 
     def process_request(self, request):
         """
@@ -80,14 +80,17 @@ class VLAServer:
             # Parse request
             jpeg_bytes = request[0]
             instruction = request[1].decode('utf-8')
+            print(f"Received request: '{instruction}' ({len(jpeg_bytes)} bytes)", flush=True)
 
             # Decode image
             image = Image.open(io.BytesIO(jpeg_bytes)).convert('RGB')
 
             # Run inference
+            print("Running inference...", flush=True)
             start_time = time.time()
             left_speed, right_speed = self.vla.predict(image, instruction)
             inference_time = time.time() - start_time
+            print(f"Inference completed in {inference_time:.2f}s", flush=True)
 
             # Update statistics
             self.request_count += 1
@@ -116,7 +119,7 @@ class VLAServer:
 
         Blocks and processes requests until interrupted.
         """
-        print("VLA server running. Press Ctrl+C to stop.")
+        print("VLA server running. Press Ctrl+C to stop.", flush=True)
         try:
             while True:
                 # Wait for request

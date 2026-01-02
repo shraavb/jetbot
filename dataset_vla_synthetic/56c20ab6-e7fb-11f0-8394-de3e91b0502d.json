@@ -1,0 +1,8 @@
+{
+  "instruction": "rotate left",
+  "action": {
+    "left_speed": -0.3139050781157745,
+    "right_speed": 0.2847032267201533
+  },
+  "source": "synthetic"
+}

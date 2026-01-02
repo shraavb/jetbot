@@ -1,0 +1,8 @@
+{
+  "instruction": "reverse",
+  "action": {
+    "left_speed": -0.2780935899826753,
+    "right_speed": -0.2373538708811554
+  },
+  "source": "synthetic"
+}

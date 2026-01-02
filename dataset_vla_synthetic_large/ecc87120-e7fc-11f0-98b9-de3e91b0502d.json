@@ -1,0 +1,8 @@
+{
+  "instruction": "go backwards",
+  "action": {
+    "left_speed": -0.26370090641334726,
+    "right_speed": -0.21959946463800406
+  },
+  "source": "synthetic"
+}
