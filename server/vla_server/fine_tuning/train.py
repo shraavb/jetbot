@@ -11,6 +11,18 @@ from tqdm import tqdm
 from .dataset import JetBotVLADataset, create_train_val_split
 
 
+def vla_collate_fn(batch):
+    """Custom collate function that handles PIL images."""
+    images = [item['image'] for item in batch]
+    instructions = [item['instruction'] for item in batch]
+    actions = torch.stack([torch.from_numpy(item['action']) for item in batch])
+    return {
+        'image': images,  # List of PIL images
+        'instruction': instructions,  # List of strings
+        'action': actions  # Tensor
+    }
+
+
 def create_jetbot_openvla(
     base_model_id: str = "openvla/openvla-7b",
     action_dim: int = 2,
@@ -36,14 +48,17 @@ def create_jetbot_openvla(
         base_model_id,
         trust_remote_code=True
     )
+    # Use float32 for CPU compatibility (bfloat16 is CUDA/TPU only)
     model = AutoModelForVision2Seq.from_pretrained(
         base_model_id,
-        torch_dtype=torch.bfloat16,
+        torch_dtype=torch.float32,
         trust_remote_code=True
     )
 
-    # Get hidden size from model config
-    hidden_size = model.config.hidden_size
+    # Get hidden size from model config (OpenVLA stores it in text_config)
+    hidden_size = getattr(model.config, 'hidden_size', None)
+    if hidden_size is None:
+        hidden_size = model.config.text_config.hidden_size
 
     # Replace action head with JetBot-specific head
     # Note: The actual attribute name depends on OpenVLA's architecture
@@ -122,13 +137,13 @@ def fine_tune(
     device = config['device']
     model = model.to(device)
 
-    # Create data loader
+    # Create data loader with custom collate function for PIL images
     train_loader = DataLoader(
         train_dataset,
         batch_size=config['batch_size'],
         shuffle=True,
-        num_workers=2,
-        pin_memory=True
+        num_workers=0,  # Use 0 workers on Windows to avoid issues
+        collate_fn=vla_collate_fn
     )
 
     val_loader = None
@@ -137,7 +152,8 @@ def fine_tune(
             val_dataset,
             batch_size=config['batch_size'],
             shuffle=False,
-            num_workers=2
+            num_workers=0,
+            collate_fn=vla_collate_fn
         )
 
     # Optimizer

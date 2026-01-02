@@ -60,6 +60,14 @@ class VLAServer:
             load_in_8bit=load_in_8bit
         )
 
+        # Run warmup inference to avoid slow first request (especially on MPS)
+        print("Running warmup inference (this may take several minutes on first run)...", flush=True)
+        warmup_start = time.time()
+        dummy_image = Image.new('RGB', (224, 224), color='gray')
+        self.vla.predict(dummy_image, "warmup")
+        warmup_time = time.time() - warmup_start
+        print(f"Warmup complete in {warmup_time:.1f}s", flush=True)
+
         # Initialize ZMQ
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)

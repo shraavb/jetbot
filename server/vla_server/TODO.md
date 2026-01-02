@@ -1,33 +1,25 @@
 # VLA Server - TODO / Known Issues
 
-## Critical: Inference Timeout Issue
+## Critical: Inference Timeout Issue - FIXED ✓
 
-The test script (`scripts/test_vla_server.py`) times out because VLA inference is extremely slow on Apple Silicon MPS.
+The test script (`scripts/test_vla_server.py`) was timing out because VLA inference is extremely slow on Apple Silicon MPS.
 
 ### Root Cause
 - **First inference on MPS takes ~457 seconds (~7.6 minutes)** due to Metal shader compilation/JIT
 - Subsequent inferences are also slow (need more testing to determine exact time)
-- The test script default timeout is 120 seconds, which is insufficient
+- The test script default timeout was 120 seconds, which was insufficient
 
-### Fixes Needed
+### Fixes Applied ✓
 
-1. **Add warmup inference during server startup**
-   - Run a dummy inference when the server starts so users don't experience the slow first inference
+1. **✓ Added warmup inference during server startup**
+   - Server now runs a dummy inference at startup to pre-compile shaders
    - Location: `server/vla_server/server.py` in `VLAServer.__init__()` after model loading
-   - Example:
-     ```python
-     # After self.vla = OpenVLAWrapper(...)
-     print("Running warmup inference (this may take several minutes)...", flush=True)
-     dummy_image = Image.new('RGB', (224, 224), color='gray')
-     self.vla.predict(dummy_image, "warmup")
-     print("Warmup complete.", flush=True)
-     ```
 
-2. **Increase default timeout in test script**
-   - Change default from 120s to 600s (10 minutes) or more
+2. **✓ Increased default timeout in test script**
+   - Changed default from 120s to 600s (10 minutes)
    - Location: `scripts/test_vla_server.py` line 126
 
-3. **Consider using a smaller/quantized model**
+3. **Consider using a smaller/quantized model** (optional)
    - The 7B parameter model is too large for efficient MPS inference
    - Options:
      - Use 4-bit quantization (CUDA only currently)

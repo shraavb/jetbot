@@ -123,7 +123,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', default='localhost')
     parser.add_argument('--port', type=int, default=5555)
-    parser.add_argument('--timeout', type=int, default=120, help='Timeout in seconds (default: 120 for first run)')
+    parser.add_argument('--timeout', type=int, default=600, help='Timeout in seconds (default: 600 for MPS/first run)')
     parser.add_argument('--check', action='store_true', help='Quick status check only')
     args = parser.parse_args()
 
