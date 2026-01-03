@@ -16,7 +16,8 @@
       "Bash(git commit:*)",
       "Bash(grep:*)",
       "WebFetch(domain:www.waveshare.com)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(find:*)"
     ]
   }
 }

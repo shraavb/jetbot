@@ -207,35 +207,48 @@ def collect_synthetic_data(
             wheel_base=0.1
         )
 
-        # Create camera and attach to JetBot chassis
-        from omni.isaac.core.utils.prims import create_prim
-        from pxr import UsdGeom, Gf
-
-        # Create camera prim
-        camera_prim_path = "/World/JetBot/chassis/rgb_camera"
-        create_prim(camera_prim_path, "Camera")
-
-        # Position camera on JetBot (front-facing)
+        # Find or create camera
         import omni.usd
-        stage = omni.usd.get_context().get_stage()
-        camera_prim = stage.GetPrimAtPath(camera_prim_path)
-        xform = UsdGeom.Xformable(camera_prim)
-        xform.ClearXformOpOrder()
-        xform.AddTranslateOp().Set(Gf.Vec3d(0.05, 0, 0.05))  # Front of robot, slightly up
-        xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, 0))  # Forward facing
+        from pxr import UsdGeom, Gf
+        from omni.isaac.core.utils.prims import create_prim
 
-        # Now create Isaac Sim camera wrapper
+        stage = omni.usd.get_context().get_stage()
+
+        # First, search for existing camera prim in the JetBot USD
+        camera_prim_path = None
+        for prim in stage.Traverse():
+            if prim.IsA(UsdGeom.Camera):
+                camera_prim_path = str(prim.GetPath())
+                print(f"Found existing camera at: {camera_prim_path}")
+                break
+
+        # If no camera found, create one at world level (not attached to robot)
+        if camera_prim_path is None:
+            camera_prim_path = "/World/Camera"
+            print(f"No camera found in USD, creating at: {camera_prim_path}")
+            create_prim(camera_prim_path, "Camera")
+
+            # Position camera to look at the scene from above/front
+            camera_prim = stage.GetPrimAtPath(camera_prim_path)
+            xform = UsdGeom.Xformable(camera_prim)
+            xform.ClearXformOpOrder()
+            xform.AddTranslateOp().Set(Gf.Vec3d(0.5, 0.0, 0.3))  # In front, slightly elevated
+            xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 30, 180))  # Looking back at robot
+
+        # IMPORTANT: Reset world BEFORE camera initialization
+        world.reset()
+
+        # Create Camera wrapper
         camera = Camera(
             prim_path=camera_prim_path,
             resolution=(224, 224),
             frequency=30
         )
-
-        world.reset()
         camera.initialize()
 
-        # Need a few frames for camera to initialize
-        for _ in range(10):
+        # Warm-up frames for camera to initialize properly
+        print("Warming up camera...")
+        for _ in range(20):
             world.step(render=True)
 
         total_samples = 0
