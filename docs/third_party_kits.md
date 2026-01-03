@@ -7,15 +7,31 @@ In addition to the open-source DIY version, several third party JetBot kits usin
 
 
 ## Waveshare JetBot
-    
+
 <img src="images/waveshare_jetbot_green.jpg"  style="height:256px">
 
-    
+
 | Kit      | URL |
 |----------|-----|
 | WaveShare JetBot Kit |[Amazon.com](https://www.amazon.com/dp/B081LF98T8/), [Waveshare.com](https://www.waveshare.com/product/mini-pc/jetson/packages/jetbot-ai-kit-acce.htm), [Waveshare.net(中文)](https://www.waveshare.net/shop/JetBot-AI-Kit-Acce.htm) |
 | WaveShare JetBot Kit (includes Jetson Nano Dev Kit) | [Amazon.com](https://www.amazon.com/dp/B081LCJXML/), [Waveshare.com](https://www.waveshare.com/product/mini-pc/jetson/packages/jetbot-ai-kit.htm), [Waveshare.net(中文)](https://www.waveshare.net/shop/JetBot-AI-Kit.htm) |
 
+### Hardware Specifications
+
+| Component | Details |
+|-----------|---------|
+| Motor Driver | PCA9685 PWM controller + TB6612FNG dual H-bridge |
+| I2C Address | 0x60 (96 decimal) |
+| Motors | TT motors (Differential 2WD) |
+| Drive Type | Differential drive |
+
+The Waveshare JetBot uses a PCA9685 PWM controller at I2C address 0x60, which is compatible with the Adafruit Motor HAT library. The TB6612FNG chip handles the actual motor driving.
+
+**Verifying I2C connection:**
+```bash
+sudo i2cdetect -r -y 1
+```
+You should see `60` in the output if the motor driver is properly connected.
 
 ### Links
 

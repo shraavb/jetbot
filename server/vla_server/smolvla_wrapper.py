@@ -266,7 +266,47 @@ class SmolVLAWrapper:
         image: Image.Image,
         instruction: str
     ) -> Tuple[float, float]:
-        """Predict using CLIP vision encoder only + action head."""
+        """Predict using CLIP vision encoder only + action head.
+
+        Note: Without fine-tuning, this uses keyword-based hardcoded actions.
+        For learned behavior, fine-tune the action head on your dataset.
+        """
+        instruction_lower = instruction.lower()
+
+        # Use hardcoded actions for basic commands (action head is not trained)
+        # Motor values: positive = forward, negative = backward
+        # Note: Waveshare motor.py inverts these, so we use negative for forward
+        base_speed = 0.5  # Will be scaled by max_speed in vla_navigation.py
+
+        # Check for basic movement commands and return hardcoded values
+        if "stop" in instruction_lower or "halt" in instruction_lower:
+            return (0.0, 0.0)
+
+        elif "forward" in instruction_lower or "ahead" in instruction_lower or "straight" in instruction_lower:
+            # Both motors forward (negative for Waveshare)
+            return (-base_speed, -base_speed)
+
+        elif "backward" in instruction_lower or "back" in instruction_lower or "reverse" in instruction_lower:
+            # Both motors backward (positive for Waveshare)
+            return (base_speed, base_speed)
+
+        elif "left" in instruction_lower and "spin" in instruction_lower:
+            # Spin left in place: left motor back, right motor forward
+            return (base_speed, -base_speed)
+
+        elif "right" in instruction_lower and "spin" in instruction_lower:
+            # Spin right in place: left motor forward, right motor back
+            return (-base_speed, base_speed)
+
+        elif "left" in instruction_lower:
+            # Turn left: slow left motor, normal right motor
+            return (-base_speed * 0.3, -base_speed)
+
+        elif "right" in instruction_lower:
+            # Turn right: normal left motor, slow right motor
+            return (-base_speed, -base_speed * 0.3)
+
+        # For complex instructions, use vision + action head (requires fine-tuning)
         # Process image with feature extractor
         inputs = self.feature_extractor(images=image, return_tensors="pt")
         pixel_values = inputs["pixel_values"].to(self.device)
@@ -275,23 +315,22 @@ class SmolVLAWrapper:
         outputs = self.model(pixel_values=pixel_values)
 
         # Get the pooled output (CLS token representation)
-        # Shape: [1, hidden_size] e.g., [1, 768]
         hidden = outputs.pooler_output
 
         # Encode instruction as simple embedding based on keywords
-        # This is a simple approach - in production, you'd train this
-        instruction_lower = instruction.lower()
         instruction_embedding = torch.zeros(1, 64, device=self.device)
         if "forward" in instruction_lower or "ahead" in instruction_lower:
             instruction_embedding[0, 0] = 1.0
-        elif "left" in instruction_lower:
+        if "left" in instruction_lower:
             instruction_embedding[0, 1] = 1.0
-        elif "right" in instruction_lower:
+        if "right" in instruction_lower:
             instruction_embedding[0, 2] = 1.0
-        elif "back" in instruction_lower or "reverse" in instruction_lower:
+        if "back" in instruction_lower or "reverse" in instruction_lower:
             instruction_embedding[0, 3] = 1.0
-        elif "stop" in instruction_lower:
+        if "stop" in instruction_lower:
             instruction_embedding[0, 4] = 1.0
+        if "avoid" in instruction_lower or "obstacle" in instruction_lower:
+            instruction_embedding[0, 5] = 1.0
 
         # Concatenate vision features with instruction embedding
         combined = torch.cat([hidden, instruction_embedding], dim=-1)
@@ -304,7 +343,7 @@ class SmolVLAWrapper:
             ).to(self.device)
         projected = self.vision_projection(combined)
 
-        # Predict action
+        # Predict action (note: this is random without fine-tuning)
         left, right = self.action_head.get_actions(projected)
 
         return (

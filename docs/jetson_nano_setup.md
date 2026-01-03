@@ -215,8 +215,8 @@ cd ~/jetbot
 # Test with VLA navigation app
 python3 -m jetbot.apps.vla_navigation \
     --instruction "go forward" \
-    --server-host localhost \
-    --max-speed 0.3
+    --server_host localhost \
+    --max_speed 0.3
 ```
 
 ## Running as a Service
