@@ -2,20 +2,48 @@
 """
 RunPod Setup Script for JetBot VLA Simulation
 
-This script sets up the JetBot VLA simulation environment on RunPod.
-Run this after connecting to your RunPod instance.
+Self-contained script that runs Isaac Sim without JetBot hardware dependencies.
 
 Usage:
     python runpod_setup.py --download-assets
     python runpod_setup.py --test-sim
-    python runpod_setup.py --run-vla --vla-host <host> --vla-port <port>
+    python runpod_setup.py --collect-data --episodes 10 --output /workspace/sim_data
 """
 
 import os
 import sys
+import json
+import time
+import uuid
 import argparse
-import subprocess
+import numpy as np
 from pathlib import Path
+from typing import List, Tuple
+
+
+# Default navigation instructions for data collection
+DEFAULT_INSTRUCTIONS = [
+    "go forward",
+    "move forward",
+    "drive straight ahead",
+    "turn left",
+    "turn right",
+    "rotate left",
+    "rotate right",
+    "go backward",
+    "move back",
+    "stop",
+    "halt",
+    "avoid the obstacle",
+    "go around the obstacle",
+    "approach the object",
+    "move toward the target",
+    "navigate to the goal",
+    "follow the path",
+    "explore the area",
+    "turn around",
+    "make a u-turn"
+]
 
 
 def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
@@ -37,6 +65,35 @@ def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
     print("Download complete!")
 
     return str(jetbot_path)
+
+
+def get_scripted_action(instruction: str) -> Tuple[float, float]:
+    """Get action based on instruction keywords with noise."""
+    instruction = instruction.lower()
+    noise = np.random.normal(0, 0.1, 2)
+
+    if 'forward' in instruction or 'straight' in instruction:
+        action = (0.5, 0.5)
+    elif 'left' in instruction:
+        action = (0.2, 0.5)
+    elif 'right' in instruction:
+        action = (0.5, 0.2)
+    elif 'backward' in instruction or 'back' in instruction:
+        action = (-0.3, -0.3)
+    elif 'stop' in instruction or 'halt' in instruction:
+        action = (0.0, 0.0)
+    elif 'avoid' in instruction or 'around' in instruction:
+        if np.random.random() > 0.5:
+            action = (0.3, 0.5)
+        else:
+            action = (0.5, 0.3)
+    else:
+        action = (0.3, 0.3)
+
+    return (
+        float(np.clip(action[0] + noise[0], -1.0, 1.0)),
+        float(np.clip(action[1] + noise[1], -1.0, 1.0))
+    )
 
 
 def test_simulation() -> bool:
@@ -77,105 +134,164 @@ def test_simulation() -> bool:
         world.reset()
 
         # Run a few steps
-        for i in range(10):
+        for i in range(20):
             wheel_velocities = controller.forward([0.3, 0.1])
             jetbot.apply_wheel_actions(wheel_velocities)
             world.step(render=False)
+            if i % 5 == 0:
+                pos, _ = jetbot.get_world_pose()
+                print(f"Step {i}: Pos=[{pos[0]:.3f}, {pos[1]:.3f}]")
 
-        pos, _ = jetbot.get_world_pose()
-        print(f"Test passed! JetBot position: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
-
+        print("Test PASSED! JetBot simulation working.")
         simulation_app.close()
         return True
 
     except Exception as e:
-        print(f"Test failed: {e}")
+        print(f"Test FAILED: {e}")
+        import traceback
+        traceback.print_exc()
         return False
-
-
-def run_vla_simulation(
-    vla_host: str = "localhost",
-    vla_port: int = 5555,
-    instruction: str = "go forward",
-    max_steps: int = 200
-):
-    """Run VLA-guided simulation."""
-    print(f"Starting VLA simulation...")
-    print(f"  VLA Server: {vla_host}:{vla_port}")
-    print(f"  Instruction: {instruction}")
-
-    # Add jetbot module to path
-    jetbot_path = Path(__file__).parent.parent.parent
-    sys.path.insert(0, str(jetbot_path))
-
-    from jetbot.isaac_sim import VLASimInterface
-
-    interface = VLASimInterface(
-        vla_server_host=vla_host,
-        vla_server_port=vla_port,
-        headless=True,
-        scene='grid'
-    )
-
-    try:
-        interface.start()
-
-        result = interface.run_vla_navigation(
-            instruction=instruction,
-            max_steps=max_steps,
-            on_step=lambda step, img, action: print(
-                f"Step {step}: action=({action[0]:.2f}, {action[1]:.2f})"
-            ) if step % 20 == 0 else None
-        )
-
-        print(f"\nNavigation complete!")
-        print(f"  Steps: {result['num_steps']}")
-        print(f"  Final position: {result['final_position']}")
-
-    finally:
-        interface.stop()
 
 
 def collect_synthetic_data(
     output_dir: str = "/workspace/sim_data",
     num_episodes: int = 10,
-    steps_per_episode: int = 50
+    steps_per_episode: int = 50,
+    instructions: List[str] = None
 ):
-    """Collect synthetic training data."""
+    """Collect synthetic training data - self-contained without jetbot imports."""
     print(f"Collecting synthetic data...")
     print(f"  Episodes: {num_episodes}")
     print(f"  Steps per episode: {steps_per_episode}")
     print(f"  Output: {output_dir}")
 
-    jetbot_path = Path(__file__).parent.parent.parent
-    sys.path.insert(0, str(jetbot_path))
+    if instructions is None:
+        instructions = DEFAULT_INSTRUCTIONS
 
-    from jetbot.isaac_sim import VLASimInterface
-
-    interface = VLASimInterface(
-        headless=True,
-        scene='grid'
-    )
+    # Create output directory
+    save_path = Path(output_dir)
+    save_path.mkdir(parents=True, exist_ok=True)
 
     try:
-        interface.start()
+        from isaacsim import SimulationApp
+        simulation_app = SimulationApp({"headless": True})
 
-        path = interface.collect_data(
-            num_episodes=num_episodes,
-            steps_per_episode=steps_per_episode,
-            save_dir=output_dir,
-            policy='scripted'
+        from omni.isaac.core import World
+        from omni.isaac.wheeled_robots.robots import WheeledRobot
+        from omni.isaac.wheeled_robots.controllers.differential_controller import DifferentialController
+        from omni.isaac.sensor import Camera
+        from PIL import Image
+
+        # Create world
+        world = World()
+        world.scene.add_default_ground_plane()
+
+        # Load JetBot
+        jetbot_path = "/workspace/assets/jetbot.usd"
+        if not os.path.exists(jetbot_path):
+            jetbot_path = download_jetbot_asset()
+
+        jetbot = world.scene.add(
+            WheeledRobot(
+                prim_path="/World/JetBot",
+                name="jetbot",
+                wheel_dof_names=["left_wheel_joint", "right_wheel_joint"],
+                create_robot=True,
+                usd_path=jetbot_path,
+            )
         )
 
-        print(f"\nData collection complete: {path}")
+        controller = DifferentialController(
+            name="diff_controller",
+            wheel_radius=0.0325,
+            wheel_base=0.1
+        )
 
-    finally:
-        interface.stop()
+        # Add camera to JetBot
+        camera = Camera(
+            prim_path="/World/JetBot/chassis/rgb_camera",
+            resolution=(224, 224),
+            frequency=30
+        )
+
+        world.reset()
+        camera.initialize()
+
+        # Need a few frames for camera to initialize
+        for _ in range(10):
+            world.step(render=True)
+
+        total_samples = 0
+
+        for episode in range(num_episodes):
+            # Reset robot position
+            world.reset()
+
+            # Let simulation settle
+            for _ in range(5):
+                world.step(render=True)
+
+            # Select random instruction for this episode
+            instruction = np.random.choice(instructions)
+
+            for step in range(steps_per_episode):
+                # Get camera image
+                world.step(render=True)
+                rgba = camera.get_rgba()
+
+                if rgba is None:
+                    print(f"Warning: No camera image at episode {episode}, step {step}")
+                    continue
+
+                rgb = rgba[:, :, :3]
+
+                # Get action from scripted policy
+                left_speed, right_speed = get_scripted_action(instruction)
+
+                # Save sample
+                sample_id = str(uuid.uuid4())
+
+                # Save image
+                img_pil = Image.fromarray(rgb.astype(np.uint8))
+                img_pil.save(save_path / f"{sample_id}.jpg", quality=95)
+
+                # Save metadata
+                metadata = {
+                    'instruction': instruction,
+                    'action': {
+                        'left_speed': left_speed,
+                        'right_speed': right_speed
+                    },
+                    'episode': episode,
+                    'step': step,
+                    'timestamp': time.time(),
+                    'source': 'isaac_sim'
+                }
+                with open(save_path / f"{sample_id}.json", 'w') as f:
+                    json.dump(metadata, f, indent=2)
+
+                # Apply action
+                linear = (left_speed + right_speed) / 2.0 * 0.3
+                angular = (right_speed - left_speed) / 0.1 * 0.3
+                wheel_velocities = controller.forward([linear, angular])
+                jetbot.apply_wheel_actions(wheel_velocities)
+
+                total_samples += 1
+
+            print(f"Episode {episode+1}/{num_episodes} complete ({total_samples} samples)")
+
+        print(f"\nData collection complete: {total_samples} samples saved to {save_path}")
+        simulation_app.close()
+
+    except Exception as e:
+        print(f"Data collection failed: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='RunPod Setup for JetBot VLA Simulation'
+        description='RunPod Setup for JetBot VLA Simulation (Self-contained)'
     )
     parser.add_argument(
         '--download-assets',
@@ -188,36 +304,21 @@ def main():
         help='Test Isaac Sim with JetBot'
     )
     parser.add_argument(
-        '--run-vla',
-        action='store_true',
-        help='Run VLA-guided simulation'
-    )
-    parser.add_argument(
         '--collect-data',
         action='store_true',
         help='Collect synthetic training data'
-    )
-    parser.add_argument(
-        '--vla-host',
-        default='localhost',
-        help='VLA server hostname'
-    )
-    parser.add_argument(
-        '--vla-port',
-        type=int,
-        default=5555,
-        help='VLA server port'
-    )
-    parser.add_argument(
-        '--instruction',
-        default='go forward',
-        help='Navigation instruction for VLA'
     )
     parser.add_argument(
         '--episodes',
         type=int,
         default=10,
         help='Number of episodes for data collection'
+    )
+    parser.add_argument(
+        '--steps',
+        type=int,
+        default=50,
+        help='Steps per episode'
     )
     parser.add_argument(
         '--output',
@@ -234,20 +335,14 @@ def main():
         success = test_simulation()
         sys.exit(0 if success else 1)
 
-    if args.run_vla:
-        run_vla_simulation(
-            vla_host=args.vla_host,
-            vla_port=args.vla_port,
-            instruction=args.instruction
-        )
-
     if args.collect_data:
         collect_synthetic_data(
             output_dir=args.output,
-            num_episodes=args.episodes
+            num_episodes=args.episodes,
+            steps_per_episode=args.steps
         )
 
-    if not any([args.download_assets, args.test_sim, args.run_vla, args.collect_data]):
+    if not any([args.download_assets, args.test_sim, args.collect_data]):
         parser.print_help()
 
 

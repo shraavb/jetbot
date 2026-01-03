@@ -1,6 +1,7 @@
 # Isaac Sim Integration for JetBot VLA
 
 This module provides NVIDIA Isaac Sim integration for VLA training and testing.
+The `runpod_setup.py` script is **self-contained** and doesn't require JetBot hardware dependencies.
 
 ## Quick Start on RunPod
 
@@ -11,64 +12,56 @@ This module provides NVIDIA Isaac Sim integration for VLA training and testing.
 
 ### 2. Install Isaac Sim
 ```bash
-# Install via pip
 pip install isaacsim[all] --extra-index-url https://pypi.nvidia.com
 
-# Install system libraries
 apt-get update && apt-get install -y \
     libvulkan1 vulkan-tools libxt6 libxmu6 \
     libxi6 libglu1-mesa libgl1-mesa-glx libegl1-mesa
 ```
 
-### 3. Download JetBot Asset
-```bash
-mkdir -p /workspace/assets
-wget -O /workspace/assets/jetbot.usd \
-    "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Assets/Isaac/4.0/Isaac/Robots/Jetbot/jetbot.usd"
-```
-
-### 4. Clone and Install JetBot
+### 3. Download the Script (no full repo needed)
 ```bash
 cd /workspace
-git clone <your-repo> jetbot
-cd jetbot && pip install -e .
+curl -O https://raw.githubusercontent.com/shraavb/jetbot/isaac-sim/jetbot/isaac_sim/runpod_setup.py
 ```
 
-### 5. Test Simulation
+Or clone the branch:
 ```bash
-python jetbot/isaac_sim/runpod_setup.py --test-sim
+curl -L https://github.com/shraavb/jetbot/archive/refs/heads/isaac-sim.zip -o jetbot.zip
+unzip jetbot.zip && mv jetbot-isaac-sim jetbot
 ```
 
-## Running VLA with Simulation
-
-### Option A: VLA Server on Same Machine
+### 4. Download JetBot Asset & Test
 ```bash
-# Terminal 1: Start VLA server
-python -m server.vla_server.server --port 5555
-
-# Terminal 2: Run simulation
-python jetbot/isaac_sim/runpod_setup.py --run-vla --instruction "go forward"
+python runpod_setup.py --download-assets
+python runpod_setup.py --test-sim
 ```
 
-### Option B: VLA Server on Different Machine
+### 5. Collect Training Data
 ```bash
-# On VLA server (e.g., local Mac with MPS)
-python -m server.vla_server.server --port 5555 --device mps
+python runpod_setup.py --collect-data --episodes 100 --output /workspace/sim_data
+```
 
-# On RunPod
-python jetbot/isaac_sim/runpod_setup.py --run-vla \
-    --vla-host <VLA_SERVER_IP> --vla-port 5555
+## Command Reference
+
+```bash
+# Download JetBot 3D model
+python runpod_setup.py --download-assets
+
+# Test simulation works
+python runpod_setup.py --test-sim
+
+# Collect synthetic training data
+python runpod_setup.py --collect-data --episodes 100 --steps 50 --output /workspace/sim_data
 ```
 
 ## Requirements
 
 1. **NVIDIA Isaac Sim** (version 4.5+)
    - Pip installation: `pip install isaacsim[all] --extra-index-url https://pypi.nvidia.com`
-   - Or install from [NVIDIA Omniverse](https://developer.nvidia.com/isaac-sim)
 
 2. **GPU with CUDA support**
    - RTX 3090/4090 or better recommended
-   - 24GB+ VRAM for full VLA + simulation
 
 ## Usage
 
