@@ -121,64 +121,63 @@ class SmolVLAWrapper:
             raise ImportError("lerobot not installed, cannot load SmolVLA")
 
     def _load_smolvlm_model(self, load_in_4bit: bool, load_in_8bit: bool):
-        """Load SmolVLM as base model with custom action head."""
-        from transformers import AutoProcessor, AutoModelForVision2Seq
+        """Load CLIP as base model with custom action head (compatible with older transformers)."""
+        try:
+            # Try newer transformers API first
+            from transformers import AutoProcessor, AutoModelForVision2Seq
 
-        # Quantization config
-        quantization_config = None
-        if load_in_4bit or load_in_8bit:
-            try:
-                from transformers import BitsAndBytesConfig
-                quantization_config = BitsAndBytesConfig(
-                    load_in_4bit=load_in_4bit,
-                    load_in_8bit=load_in_8bit,
-                    bnb_4bit_compute_dtype=torch.float16
-                )
-            except ImportError:
-                print("SmolVLA: bitsandbytes not available, skipping quantization")
+            self.processor = AutoProcessor.from_pretrained(
+                self.model_id,
+                trust_remote_code=True
+            )
 
-        # Load processor
-        self.processor = AutoProcessor.from_pretrained(
-            self.model_id,
-            trust_remote_code=True
-        )
-
-        # Load model
-        model_kwargs = {
-            "torch_dtype": self.dtype,
-            "trust_remote_code": True,
-            "low_cpu_mem_usage": True
-        }
-
-        if quantization_config:
-            model_kwargs["quantization_config"] = quantization_config
-            model_kwargs["device_map"] = "auto"
-        else:
-            model_kwargs["device_map"] = None
-
-        self.model = AutoModelForVision2Seq.from_pretrained(
-            self.model_id,
-            **model_kwargs
-        )
-
-        if not quantization_config:
+            self.model = AutoModelForVision2Seq.from_pretrained(
+                self.model_id,
+                torch_dtype=self.dtype,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True
+            )
             self.model = self.model.to(self.device)
+            self.model.eval()
+            self.model_type = "smolvlm"
 
-        self.model.eval()
-        self.model_type = "smolvlm"
+        except (ImportError, Exception) as e:
+            print(f"SmolVLA: AutoProcessor not available, using CLIP fallback: {e}", flush=True)
+            # Fallback to CLIP for older transformers (4.18.0 and below)
+            from transformers import CLIPProcessor, CLIPModel
+
+            clip_model_id = "openai/clip-vit-base-patch32"
+            print(f"SmolVLA: Loading CLIP model {clip_model_id}", flush=True)
+
+            self.processor = CLIPProcessor.from_pretrained(clip_model_id)
+            self.model = CLIPModel.from_pretrained(clip_model_id)
+            self.model = self.model.to(self.device)
+            self.model.eval()
+            self.model_type = "clip"
+
+            # Override model_id for config
+            self.model_id = clip_model_id
 
     def _init_action_head(self):
         """Initialize JetBot action head."""
         # Get hidden size from model config
-        if hasattr(self.model, 'config'):
+        if self.model_type == "clip":
+            # CLIP uses projection_dim (512) but we concatenate image+text (1024)
+            # We'll project back to 512 for the action head
+            hidden_size = 512
+        elif hasattr(self.model, 'config'):
             if hasattr(self.model.config, 'hidden_size'):
                 hidden_size = self.model.config.hidden_size
             elif hasattr(self.model.config, 'text_config'):
                 hidden_size = self.model.config.text_config.hidden_size
+            elif hasattr(self.model.config, 'projection_dim'):
+                hidden_size = self.model.config.projection_dim
             else:
                 hidden_size = 768  # Default for small models
         else:
             hidden_size = 768
+
+        self.action_head_hidden_size = hidden_size
 
         self.action_head = JetBotActionHead(
             hidden_size=hidden_size,
@@ -280,8 +279,11 @@ class SmolVLAWrapper:
         image: Image.Image,
         instruction: str
     ) -> Tuple[float, float]:
-        """Predict using SmolVLM + action head."""
-        # Format prompt
+        """Predict using SmolVLM/CLIP + action head."""
+        if self.model_type == "clip":
+            return self._predict_clip(image, instruction)
+
+        # Format prompt for SmolVLM
         prompt = f"What action should the robot take to {instruction}?"
 
         # Process inputs
@@ -313,6 +315,52 @@ class SmolVLAWrapper:
 
         # Predict action
         left, right = self.action_head.get_actions(hidden)
+
+        return (
+            np.clip(left, -1.0, 1.0),
+            np.clip(right, -1.0, 1.0)
+        )
+
+    def _predict_clip(
+        self,
+        image: Image.Image,
+        instruction: str
+    ) -> Tuple[float, float]:
+        """Predict using CLIP + action head."""
+        # Process inputs with CLIP processor
+        inputs = self.processor(
+            text=[instruction],
+            images=image,
+            return_tensors="pt",
+            padding=True
+        )
+
+        # Move to device
+        inputs = {k: v.to(self.device) if hasattr(v, 'to') else v
+                  for k, v in inputs.items()}
+
+        # Get CLIP embeddings
+        outputs = self.model(**inputs)
+
+        # Combine image and text embeddings
+        image_embeds = outputs.image_embeds  # [1, 512]
+        text_embeds = outputs.text_embeds    # [1, 512]
+
+        # Concatenate for richer representation
+        combined = torch.cat([image_embeds, text_embeds], dim=-1)  # [1, 1024]
+
+        # Project to action head hidden size if needed
+        if combined.shape[-1] != self.action_head_hidden_size:
+            # Simple projection
+            if not hasattr(self, 'clip_projection'):
+                self.clip_projection = nn.Linear(
+                    combined.shape[-1],
+                    self.action_head_hidden_size
+                ).to(self.device)
+            combined = self.clip_projection(combined)
+
+        # Predict action
+        left, right = self.action_head.get_actions(combined)
 
         return (
             np.clip(left, -1.0, 1.0),

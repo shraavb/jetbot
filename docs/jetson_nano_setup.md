@@ -37,6 +37,40 @@ sudo swapon /swapfile
 echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
 ```
 
+## Step 1b: Mount USB for Extra Storage (Recommended)
+
+If you run low on disk space during installation, use a USB drive for build files:
+
+```bash
+# Plug in a USB drive (8GB+ recommended)
+# Find the device name
+lsblk
+
+# Mount with proper permissions (usually /dev/sda1)
+sudo mkdir -p /mnt/usb
+sudo mount -o uid=$(id -u),gid=$(id -g) /dev/sda1 /mnt/usb
+
+# Create directories for build cache
+mkdir -p /mnt/usb/.cargo /mnt/usb/tmp
+
+# Set environment variables (add to ~/.bashrc for persistence)
+export CARGO_HOME=/mnt/usb/.cargo
+export TMPDIR=/mnt/usb/tmp
+
+# Optional: Move HuggingFace cache to USB for model downloads
+export HF_HOME=/mnt/usb/.cache/huggingface
+mkdir -p $HF_HOME
+```
+
+To make the USB mount persistent across reboots, add to `/etc/fstab`:
+```bash
+# Find USB UUID
+sudo blkid /dev/sda1
+
+# Add to fstab (replace UUID with your value)
+echo "UUID=YOUR-UUID-HERE /mnt/usb vfat uid=1000,gid=1000,umask=022 0 0" | sudo tee -a /etc/fstab
+```
+
 ## Step 2: Install PyTorch for Jetson
 
 NVIDIA provides pre-built PyTorch wheels for Jetson. Do NOT use pip install torch directly.
@@ -76,23 +110,38 @@ git checkout smallVLA
 
 ## Step 4: Install Python Dependencies
 
+First, upgrade pip and install Rust (needed for tokenizers):
+
 ```bash
-# Install dependencies (some may need ARM-specific builds)
-pip3 install --user \
-    transformers>=4.35.0 \
-    accelerate>=0.24.0 \
-    pyzmq>=25.0.0 \
-    Pillow>=10.0.0 \
-    numpy>=1.24.0 \
-    einops>=0.7.0 \
-    pyyaml \
-    tqdm
+# Upgrade pip
+pip3 install --user --upgrade pip
+
+# Install Rust compiler (required for tokenizers)
+sudo apt-get install -y rustc cargo libzmq3-dev python3-zmq
+
+# If low on disk space, ensure USB is mounted (see Step 1b)
+# export CARGO_HOME=/mnt/usb/.cargo
+# export TMPDIR=/mnt/usb/tmp
+```
+
+Install Python packages (note: Python 3.6 on JetPack 4.x requires older versions):
+
+```bash
+# Install basic dependencies first
+python3 -m pip install --user numpy Pillow pyyaml tqdm einops
+
+# For JetPack 4.x (Python 3.6) - use older transformers
+# Building tokenizers takes 30-60 minutes on Nano
+python3 -m pip install --user transformers==4.12.0 accelerate==0.15.0
+
+# For JetPack 5.x (Python 3.8+) - use newer versions
+# python3 -m pip install --user transformers accelerate
 
 # Install timm (specific version for compatibility)
-pip3 install --user "timm>=0.9.10,<1.0.0"
+python3 -m pip install --user "timm>=0.9.10,<1.0.0"
 
 # Optional: Install opencv (may already be installed with JetPack)
-pip3 install --user opencv-python
+python3 -m pip install --user opencv-python
 ```
 
 ## Step 5: Configure Memory Optimization
