@@ -34,12 +34,21 @@
 import time
 import traitlets
 from traitlets.config.configurable import SingletonConfigurable
-import qwiic
-from Adafruit_MotorHAT import Adafruit_MotorHAT
-from .motor import Motor
+from .motor import Motor, scan_i2c_addresses
 
-# Scan for devices on I2C bus
-addresses = qwiic.scan()
+# Import motor drivers
+try:
+    from Adafruit_MotorHAT import Adafruit_MotorHAT
+except ImportError:
+    Adafruit_MotorHAT = None
+
+try:
+    import qwiic
+except ImportError:
+    qwiic = None
+
+# Scan for devices on I2C bus using smbus (more reliable)
+addresses = scan_i2c_addresses()
 
 class Robot(SingletonConfigurable):
 

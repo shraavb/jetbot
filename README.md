@@ -16,6 +16,8 @@ Building and using JetBot gives the hands on experience needed to create entirel
 
 To get started, read the [JetBot documentation](https://jetbot.org).
 
+waveshare docs: https://www.waveshare.com/wiki/JetBot_AI_Kit
+
 ## Get involved
 
 We really appreciate any feedback related to JetBot, and also just enjoy seeing what you're working on!  There is a growing community of Jetson Nano and JetBot users.  It's easy to get involved involved...

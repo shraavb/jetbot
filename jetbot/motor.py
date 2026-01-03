@@ -31,15 +31,41 @@
 # SOFTWARE.
 #==================================================================================
 import atexit
-import qwiic
-from Adafruit_MotorHAT import Adafruit_MotorHAT
 import traitlets
 from traitlets.config.configurable import Configurable
 
+# Import motor drivers
+try:
+    from Adafruit_MotorHAT import Adafruit_MotorHAT
+except ImportError:
+    Adafruit_MotorHAT = None
+
+try:
+    import qwiic
+except ImportError:
+    qwiic = None
 
 
-# Scan for devices on I2C bus
-addresses = qwiic.scan()
+def scan_i2c_addresses(bus=1):
+    """Scan I2C bus using smbus (more reliable than qwiic.scan)"""
+    addresses = []
+    try:
+        import smbus
+        i2c = smbus.SMBus(bus)
+        for addr in range(0x03, 0x78):
+            try:
+                i2c.read_byte(addr)
+                addresses.append(addr)
+            except:
+                pass
+        i2c.close()
+    except Exception as e:
+        print(f"I2C scan error: {e}")
+    return addresses
+
+
+# Scan for devices on I2C bus using smbus
+addresses = scan_i2c_addresses()
 
 class Motor(Configurable):
 

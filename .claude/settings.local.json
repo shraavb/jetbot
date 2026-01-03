@@ -13,7 +13,9 @@
       "WebSearch",
       "Bash(git checkout:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:www.waveshare.com)"
     ]
   }
 }
