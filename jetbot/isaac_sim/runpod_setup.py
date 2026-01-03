@@ -207,9 +207,26 @@ def collect_synthetic_data(
             wheel_base=0.1
         )
 
-        # Add camera to JetBot
+        # Create camera and attach to JetBot chassis
+        from omni.isaac.core.utils.prims import create_prim
+        from pxr import UsdGeom, Gf
+
+        # Create camera prim
+        camera_prim_path = "/World/JetBot/chassis/rgb_camera"
+        create_prim(camera_prim_path, "Camera")
+
+        # Position camera on JetBot (front-facing)
+        import omni.usd
+        stage = omni.usd.get_context().get_stage()
+        camera_prim = stage.GetPrimAtPath(camera_prim_path)
+        xform = UsdGeom.Xformable(camera_prim)
+        xform.ClearXformOpOrder()
+        xform.AddTranslateOp().Set(Gf.Vec3d(0.05, 0, 0.05))  # Front of robot, slightly up
+        xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, 0))  # Forward facing
+
+        # Now create Isaac Sim camera wrapper
         camera = Camera(
-            prim_path="/World/JetBot/chassis/rgb_camera",
+            prim_path=camera_prim_path,
             resolution=(224, 224),
             frequency=30
         )
