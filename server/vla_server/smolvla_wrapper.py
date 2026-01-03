@@ -144,12 +144,23 @@ class SmolVLAWrapper:
         except (ImportError, Exception) as e:
             print(f"SmolVLA: AutoProcessor not available, using CLIP fallback: {e}", flush=True)
             # Fallback to CLIP for older transformers (4.18.0 and below)
-            from transformers import CLIPProcessor, CLIPModel
+            # Use separate feature extractor and tokenizer to avoid fast tokenizer requirement
+            try:
+                from transformers import CLIPProcessor, CLIPModel
+                clip_model_id = "openai/clip-vit-base-patch32"
+                print(f"SmolVLA: Loading CLIP model {clip_model_id}", flush=True)
+                self.processor = CLIPProcessor.from_pretrained(clip_model_id)
+            except ImportError:
+                # Fall back to manual loading without fast tokenizer
+                from transformers import CLIPFeatureExtractor, CLIPTokenizer, CLIPModel
+                clip_model_id = "openai/clip-vit-base-patch32"
+                print(f"SmolVLA: Loading CLIP with slow tokenizer {clip_model_id}", flush=True)
+                self.feature_extractor = CLIPFeatureExtractor.from_pretrained(clip_model_id)
+                self.tokenizer = CLIPTokenizer.from_pretrained(clip_model_id)
+                self.processor = None  # We'll handle manually
 
+            from transformers import CLIPModel
             clip_model_id = "openai/clip-vit-base-patch32"
-            print(f"SmolVLA: Loading CLIP model {clip_model_id}", flush=True)
-
-            self.processor = CLIPProcessor.from_pretrained(clip_model_id)
             self.model = CLIPModel.from_pretrained(clip_model_id)
             self.model = self.model.to(self.device)
             self.model.eval()
@@ -327,13 +338,23 @@ class SmolVLAWrapper:
         instruction: str
     ) -> Tuple[float, float]:
         """Predict using CLIP + action head."""
-        # Process inputs with CLIP processor
-        inputs = self.processor(
-            text=[instruction],
-            images=image,
-            return_tensors="pt",
-            padding=True
-        )
+        # Process inputs with CLIP processor or manual processing
+        if self.processor is not None:
+            inputs = self.processor(
+                text=[instruction],
+                images=image,
+                return_tensors="pt",
+                padding=True
+            )
+        else:
+            # Manual processing with separate feature extractor and tokenizer
+            pixel_values = self.feature_extractor(images=image, return_tensors="pt")["pixel_values"]
+            text_inputs = self.tokenizer([instruction], return_tensors="pt", padding=True)
+            inputs = {
+                "pixel_values": pixel_values,
+                "input_ids": text_inputs["input_ids"],
+                "attention_mask": text_inputs["attention_mask"]
+            }
 
         # Move to device
         inputs = {k: v.to(self.device) if hasattr(v, 'to') else v
