@@ -144,23 +144,27 @@ class SmolVLAWrapper:
         except (ImportError, Exception) as e:
             print(f"SmolVLA: AutoProcessor not available, using CLIP fallback: {e}", flush=True)
             # Fallback to CLIP for older transformers (4.18.0 and below)
-            # Use separate feature extractor and tokenizer to avoid fast tokenizer requirement
-            try:
-                from transformers import CLIPProcessor, CLIPModel
-                clip_model_id = "openai/clip-vit-base-patch32"
-                print(f"SmolVLA: Loading CLIP model {clip_model_id}", flush=True)
-                self.processor = CLIPProcessor.from_pretrained(clip_model_id)
-            except ImportError:
-                # Fall back to manual loading without fast tokenizer
-                from transformers import CLIPFeatureExtractor, CLIPTokenizer, CLIPModel
-                clip_model_id = "openai/clip-vit-base-patch32"
-                print(f"SmolVLA: Loading CLIP with slow tokenizer {clip_model_id}", flush=True)
-                self.feature_extractor = CLIPFeatureExtractor.from_pretrained(clip_model_id)
-                self.tokenizer = CLIPTokenizer.from_pretrained(clip_model_id)
-                self.processor = None  # We'll handle manually
+            # Use local model path to avoid huggingface_hub download issues
+            from transformers import CLIPFeatureExtractor, CLIPTokenizer, CLIPModel
 
-            from transformers import CLIPModel
-            clip_model_id = "openai/clip-vit-base-patch32"
+            # Use local path - model must be downloaded with wget first
+            local_clip_path = "/home/jetbot/clip-model"
+            import os
+            if os.path.exists(local_clip_path):
+                clip_model_id = local_clip_path
+                print(f"SmolVLA: Loading CLIP from local path {clip_model_id}", flush=True)
+            else:
+                clip_model_id = "openai/clip-vit-base-patch32"
+                print(f"SmolVLA: Local path not found, trying remote {clip_model_id}", flush=True)
+
+            # Load feature extractor and tokenizer separately with slow tokenizer
+            print("SmolVLA: Loading CLIP feature extractor...", flush=True)
+            self.feature_extractor = CLIPFeatureExtractor.from_pretrained(clip_model_id)
+            print("SmolVLA: Loading CLIP tokenizer (slow)...", flush=True)
+            self.tokenizer = CLIPTokenizer.from_pretrained(clip_model_id)
+            self.processor = None  # We'll handle manually in _predict_clip
+
+            print("SmolVLA: Loading CLIP model...", flush=True)
             self.model = CLIPModel.from_pretrained(clip_model_id)
             self.model = self.model.to(self.device)
             self.model.eval()
@@ -168,6 +172,7 @@ class SmolVLAWrapper:
 
             # Override model_id for config
             self.model_id = clip_model_id
+            print("SmolVLA: CLIP loaded successfully", flush=True)
 
     def _init_action_head(self):
         """Initialize JetBot action head."""
