@@ -143,9 +143,9 @@ class SmolVLAWrapper:
 
         except (ImportError, Exception) as e:
             print(f"SmolVLA: AutoProcessor not available, using CLIP fallback: {e}", flush=True)
-            # Fallback to CLIP for older transformers (4.18.0 and below)
+            # Fallback to CLIP vision-only for older transformers (4.18.0 and below)
             # Use local model path to avoid huggingface_hub download issues
-            from transformers import CLIPFeatureExtractor, CLIPTokenizer, CLIPModel
+            from transformers import CLIPFeatureExtractor, CLIPVisionModel
 
             # Use local path - model must be downloaded with wget first
             local_clip_path = "/home/jetbot/clip-model"
@@ -157,27 +157,29 @@ class SmolVLAWrapper:
                 clip_model_id = "openai/clip-vit-base-patch32"
                 print(f"SmolVLA: Local path not found, trying remote {clip_model_id}", flush=True)
 
-            # Load feature extractor and tokenizer separately with slow tokenizer
+            # Load only feature extractor and vision model (no tokenizer needed)
             print("SmolVLA: Loading CLIP feature extractor...", flush=True)
             self.feature_extractor = CLIPFeatureExtractor.from_pretrained(clip_model_id)
-            print("SmolVLA: Loading CLIP tokenizer (slow)...", flush=True)
-            self.tokenizer = CLIPTokenizer.from_pretrained(clip_model_id)
-            self.processor = None  # We'll handle manually in _predict_clip
+            self.tokenizer = None  # Skip tokenizer to avoid tokenizers library requirement
+            self.processor = None
 
-            print("SmolVLA: Loading CLIP model...", flush=True)
-            self.model = CLIPModel.from_pretrained(clip_model_id)
+            print("SmolVLA: Loading CLIP vision model...", flush=True)
+            self.model = CLIPVisionModel.from_pretrained(clip_model_id)
             self.model = self.model.to(self.device)
             self.model.eval()
-            self.model_type = "clip"
+            self.model_type = "clip_vision"
 
             # Override model_id for config
             self.model_id = clip_model_id
-            print("SmolVLA: CLIP loaded successfully", flush=True)
+            print("SmolVLA: CLIP vision loaded successfully", flush=True)
 
     def _init_action_head(self):
         """Initialize JetBot action head."""
         # Get hidden size from model config
-        if self.model_type == "clip":
+        if self.model_type == "clip_vision":
+            # CLIP vision model output is 768 for base model
+            hidden_size = self.model.config.hidden_size
+        elif self.model_type == "clip":
             # CLIP uses projection_dim (512) but we concatenate image+text (1024)
             # We'll project back to 512 for the action head
             hidden_size = 512
@@ -250,12 +252,65 @@ class SmolVLAWrapper:
             with torch.no_grad():
                 if self.model_type == "smolvla":
                     return self._predict_smolvla(image, instruction)
+                elif self.model_type == "clip_vision":
+                    return self._predict_clip_vision(image, instruction)
                 else:
                     return self._predict_smolvlm(image, instruction)
 
         except Exception as e:
             print(f"SmolVLA: Prediction error: {e}", flush=True)
             return (0.0, 0.0)  # Safe stop on error
+
+    def _predict_clip_vision(
+        self,
+        image: Image.Image,
+        instruction: str
+    ) -> Tuple[float, float]:
+        """Predict using CLIP vision encoder only + action head."""
+        # Process image with feature extractor
+        inputs = self.feature_extractor(images=image, return_tensors="pt")
+        pixel_values = inputs["pixel_values"].to(self.device)
+
+        # Get vision model output
+        outputs = self.model(pixel_values=pixel_values)
+
+        # Get the pooled output (CLS token representation)
+        # Shape: [1, hidden_size] e.g., [1, 768]
+        hidden = outputs.pooler_output
+
+        # Encode instruction as simple embedding based on keywords
+        # This is a simple approach - in production, you'd train this
+        instruction_lower = instruction.lower()
+        instruction_embedding = torch.zeros(1, 64, device=self.device)
+        if "forward" in instruction_lower or "ahead" in instruction_lower:
+            instruction_embedding[0, 0] = 1.0
+        elif "left" in instruction_lower:
+            instruction_embedding[0, 1] = 1.0
+        elif "right" in instruction_lower:
+            instruction_embedding[0, 2] = 1.0
+        elif "back" in instruction_lower or "reverse" in instruction_lower:
+            instruction_embedding[0, 3] = 1.0
+        elif "stop" in instruction_lower:
+            instruction_embedding[0, 4] = 1.0
+
+        # Concatenate vision features with instruction embedding
+        combined = torch.cat([hidden, instruction_embedding], dim=-1)
+
+        # Project to action head size if needed
+        if not hasattr(self, 'vision_projection'):
+            self.vision_projection = nn.Linear(
+                combined.shape[-1],
+                self.action_head_hidden_size
+            ).to(self.device)
+        projected = self.vision_projection(combined)
+
+        # Predict action
+        left, right = self.action_head.get_actions(projected)
+
+        return (
+            np.clip(left, -1.0, 1.0),
+            np.clip(right, -1.0, 1.0)
+        )
 
     def _predict_smolvla(
         self,
