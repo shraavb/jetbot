@@ -97,10 +97,10 @@ class JetBotSim:
                 "height": 720
             })
 
-            # Import after SimulationApp is created
-            from isaacsim.core.api import World
-            from isaacsim.robot.wheeled_robots import WheeledRobot
-            from isaacsim.robot.wheeled_robots.controllers import DifferentialController
+            # Import after SimulationApp is created (using omni.isaac paths for pip installation)
+            from omni.isaac.core import World
+            from omni.isaac.wheeled_robots.robots import WheeledRobot
+            from omni.isaac.wheeled_robots.controllers.differential_controller import DifferentialController
             from omni.isaac.sensor import Camera
 
             # Create world

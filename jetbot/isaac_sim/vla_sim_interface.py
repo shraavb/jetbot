@@ -74,14 +74,11 @@ class VLASimInterface:
         """Ensure VLA client is connected."""
         if self._vla_client is None:
             try:
-                # Import the VLA client from the project
-                import sys
-                sys.path.insert(0, str(Path(__file__).parent.parent.parent))
                 from jetbot.vla.vla_client import VLAClient
 
                 self._vla_client = VLAClient(
-                    host=self.vla_host,
-                    port=self.vla_port
+                    server_host=self.vla_host,
+                    server_port=self.vla_port
                 )
             except ImportError:
                 raise ImportError(
@@ -132,13 +129,16 @@ class VLASimInterface:
             'success': False
         }
 
+        # Set instruction on client
+        self._vla_client.instruction = instruction
+
         for step in range(max_steps):
-            # Get camera image
-            image = self._sim.get_camera_image_pil()
+            # Get camera image (VLA client expects BGR numpy array)
+            image = self._sim.get_camera_image()
 
             # Query VLA for action
             try:
-                left, right = self._vla_client.predict(image, instruction)
+                left, right = self._vla_client.predict(image)
             except Exception as e:
                 print(f"VLA prediction failed: {e}")
                 break

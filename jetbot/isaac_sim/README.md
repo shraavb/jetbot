@@ -2,33 +2,73 @@
 
 This module provides NVIDIA Isaac Sim integration for VLA training and testing.
 
+## Quick Start on RunPod
+
+### 1. Create RunPod Instance
+- Select RTX 4090 GPU ($0.29/hr Spot)
+- Configure ports: 8888 (HTTP), 22 (TCP for SSH)
+- Add 100GB storage
+
+### 2. Install Isaac Sim
+```bash
+# Install via pip
+pip install isaacsim[all] --extra-index-url https://pypi.nvidia.com
+
+# Install system libraries
+apt-get update && apt-get install -y \
+    libvulkan1 vulkan-tools libxt6 libxmu6 \
+    libxi6 libglu1-mesa libgl1-mesa-glx libegl1-mesa
+```
+
+### 3. Download JetBot Asset
+```bash
+mkdir -p /workspace/assets
+wget -O /workspace/assets/jetbot.usd \
+    "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Assets/Isaac/4.0/Isaac/Robots/Jetbot/jetbot.usd"
+```
+
+### 4. Clone and Install JetBot
+```bash
+cd /workspace
+git clone <your-repo> jetbot
+cd jetbot && pip install -e .
+```
+
+### 5. Test Simulation
+```bash
+python jetbot/isaac_sim/runpod_setup.py --test-sim
+```
+
+## Running VLA with Simulation
+
+### Option A: VLA Server on Same Machine
+```bash
+# Terminal 1: Start VLA server
+python -m server.vla_server.server --port 5555
+
+# Terminal 2: Run simulation
+python jetbot/isaac_sim/runpod_setup.py --run-vla --instruction "go forward"
+```
+
+### Option B: VLA Server on Different Machine
+```bash
+# On VLA server (e.g., local Mac with MPS)
+python -m server.vla_server.server --port 5555 --device mps
+
+# On RunPod
+python jetbot/isaac_sim/runpod_setup.py --run-vla \
+    --vla-host <VLA_SERVER_IP> --vla-port 5555
+```
+
 ## Requirements
 
 1. **NVIDIA Isaac Sim** (version 4.5+)
-   - Install from [NVIDIA Omniverse](https://developer.nvidia.com/isaac-sim)
+   - Pip installation: `pip install isaacsim[all] --extra-index-url https://pypi.nvidia.com`
+   - Or install from [NVIDIA Omniverse](https://developer.nvidia.com/isaac-sim)
 
-2. **Python Environment**
-   - Isaac Sim's Python environment must be activated
-   - Or use standalone Python with `isaacsim` packages
-
-## Installation
-
-### Option 1: Use Isaac Sim's Python
-
-```bash
-# Navigate to Isaac Sim installation
-cd /path/to/isaac_sim
-
-# Run with Isaac Sim Python
-./python.sh -m jetbot.isaac_sim.vla_sim_interface --help
-```
-
-### Option 2: Standalone Installation
-
-```bash
-# Install Isaac Sim Python packages
-pip install isaacsim-rl isaacsim-robot isaacsim-sensor
-```
+2. **GPU with CUDA support**
+   - RTX 3090/4090 or better recommended
+   - 24GB+ VRAM for full VLA + simulation
 
 ## Usage
 
