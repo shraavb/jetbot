@@ -49,7 +49,7 @@ class SmolVLATrainer:
 
     def __init__(
         self,
-        model_id: str = "HuggingFaceM4/SmolVLM-Instruct",
+        model_id: str = "HuggingFaceTB/SmolVLM-Instruct",
         output_dir: str = "./models/smolvla_jetbot",
         device: str = "auto",
         use_fp16: bool = True,
@@ -380,8 +380,8 @@ def main():
     )
     parser.add_argument(
         '--model',
-        default='HuggingFaceM4/SmolVLM-Instruct',
-        help='Base model HuggingFace ID'
+        default='HuggingFaceTB/SmolVLM-Instruct',
+        help='Base model HuggingFace ID (e.g., HuggingFaceTB/SmolVLM-500M-Instruct for smaller)'
     )
     parser.add_argument(
         '--epochs',

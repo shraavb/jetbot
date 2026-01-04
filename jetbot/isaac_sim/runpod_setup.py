@@ -3,11 +3,12 @@
 RunPod Setup Script for JetBot VLA Simulation
 
 Self-contained script that runs Isaac Sim without JetBot hardware dependencies.
+Includes domain randomization for visual diversity.
 
 Usage:
     python runpod_setup.py --download-assets
     python runpod_setup.py --test-sim
-    python runpod_setup.py --collect-data --episodes 10 --output /workspace/sim_data
+    python runpod_setup.py --collect-data --episodes 100 --output /workspace/sim_data
 """
 
 import os
@@ -18,7 +19,7 @@ import uuid
 import argparse
 import numpy as np
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 
 # Default navigation instructions for data collection
@@ -36,13 +37,36 @@ DEFAULT_INSTRUCTIONS = [
     "halt",
     "avoid the obstacle",
     "go around the obstacle",
-    "approach the object",
+    "approach the red cube",
+    "approach the blue cube",
+    "approach the green cube",
     "move toward the target",
     "navigate to the goal",
-    "follow the path",
-    "explore the area",
+    "go to the red object",
+    "go to the blue object",
     "turn around",
     "make a u-turn"
+]
+
+# Colors for domain randomization (RGB normalized 0-1)
+OBSTACLE_COLORS = {
+    'red': (0.9, 0.1, 0.1),
+    'green': (0.1, 0.8, 0.1),
+    'blue': (0.1, 0.1, 0.9),
+    'yellow': (0.9, 0.9, 0.1),
+    'orange': (0.9, 0.5, 0.1),
+    'purple': (0.6, 0.1, 0.8),
+    'cyan': (0.1, 0.8, 0.8),
+    'white': (0.9, 0.9, 0.9),
+}
+
+GROUND_COLORS = [
+    (0.3, 0.3, 0.3),   # Gray
+    (0.4, 0.3, 0.2),   # Brown
+    (0.2, 0.2, 0.25),  # Dark gray
+    (0.5, 0.5, 0.45),  # Light gray
+    (0.3, 0.25, 0.2),  # Dark brown
+    (0.6, 0.55, 0.5),  # Beige
 ]
 
 
@@ -65,6 +89,124 @@ def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
     print("Download complete!")
 
     return str(jetbot_path)
+
+
+def create_random_obstacles(stage, num_obstacles: int = 3) -> List[str]:
+    """
+    Create random colored obstacles in the scene.
+    Returns list of prim paths for cleanup.
+    """
+    from pxr import UsdGeom, Gf, UsdShade, Sdf
+    from omni.isaac.core.utils.prims import create_prim
+
+    obstacle_paths = []
+
+    for i in range(num_obstacles):
+        # Random position (in front of robot, spread out)
+        x = np.random.uniform(0.3, 1.5)
+        y = np.random.uniform(-0.8, 0.8)
+        z = 0.05  # Slightly above ground
+
+        # Random size
+        size = np.random.uniform(0.05, 0.15)
+
+        # Random color
+        color_name = np.random.choice(list(OBSTACLE_COLORS.keys()))
+        color = OBSTACLE_COLORS[color_name]
+
+        # Random shape (cube or cylinder)
+        shape_type = np.random.choice(['Cube', 'Cylinder', 'Sphere'])
+
+        prim_path = f"/World/Obstacle_{i}"
+
+        # Create the shape
+        if shape_type == 'Cube':
+            prim = create_prim(prim_path, "Cube")
+            cube = UsdGeom.Cube(prim)
+            cube.GetSizeAttr().Set(size * 2)
+        elif shape_type == 'Cylinder':
+            prim = create_prim(prim_path, "Cylinder")
+            cylinder = UsdGeom.Cylinder(prim)
+            cylinder.GetRadiusAttr().Set(size)
+            cylinder.GetHeightAttr().Set(size * 2)
+        else:  # Sphere
+            prim = create_prim(prim_path, "Sphere")
+            sphere = UsdGeom.Sphere(prim)
+            sphere.GetRadiusAttr().Set(size)
+
+        # Set position
+        xform = UsdGeom.Xformable(prim)
+        xform.ClearXformOpOrder()
+        xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z + size))
+
+        # Set color via displayColor
+        gprim = UsdGeom.Gprim(prim)
+        gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
+
+        obstacle_paths.append(prim_path)
+
+    return obstacle_paths
+
+
+def remove_obstacles(stage, obstacle_paths: List[str]):
+    """Remove obstacles from the scene."""
+    for path in obstacle_paths:
+        prim = stage.GetPrimAtPath(path)
+        if prim.IsValid():
+            stage.RemovePrim(path)
+
+
+def randomize_lighting(stage):
+    """Randomize scene lighting for visual diversity."""
+    from pxr import UsdLux, Gf, UsdGeom
+
+    # Find or create distant light
+    light_path = "/World/DistantLight"
+    light_prim = stage.GetPrimAtPath(light_path)
+
+    if not light_prim.IsValid():
+        light_prim = stage.DefinePrim(light_path, "DistantLight")
+
+    light = UsdLux.DistantLight(light_prim)
+
+    # Randomize intensity
+    intensity = np.random.uniform(500, 2000)
+    light.GetIntensityAttr().Set(intensity)
+
+    # Randomize color temperature (warm to cool)
+    color_temp = np.random.uniform(4000, 8000)
+    # Convert to RGB approximation
+    if color_temp < 6500:
+        # Warm (yellowish)
+        r, g, b = 1.0, 0.9 + 0.1 * (color_temp - 4000) / 2500, 0.8 + 0.2 * (color_temp - 4000) / 2500
+    else:
+        # Cool (bluish)
+        r, g, b = 0.9 - 0.1 * (color_temp - 6500) / 1500, 0.95, 1.0
+    light.GetColorAttr().Set(Gf.Vec3f(r, g, b))
+
+    # Randomize angle
+    xform = UsdGeom.Xformable(light_prim)
+    xform.ClearXformOpOrder()
+    angle_x = np.random.uniform(30, 70)
+    angle_y = np.random.uniform(-45, 45)
+    xform.AddRotateXYZOp().Set(Gf.Vec3d(angle_x, angle_y, 0))
+
+
+def randomize_ground_color(stage):
+    """Randomize ground plane color."""
+    from pxr import UsdGeom, Gf
+
+    # Find ground plane
+    ground_path = "/World/defaultGroundPlane/GroundPlane/CollisionMesh"
+    ground_prim = stage.GetPrimAtPath(ground_path)
+
+    if ground_prim.IsValid():
+        color = GROUND_COLORS[np.random.randint(len(GROUND_COLORS))]
+        gprim = UsdGeom.Gprim(ground_prim)
+        gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
+
+
+# Note: UsdGeom is imported inside functions to avoid import errors before Isaac Sim is initialized
 
 
 def get_scripted_action(instruction: str) -> Tuple[float, float]:
@@ -157,12 +299,26 @@ def collect_synthetic_data(
     output_dir: str = "/workspace/sim_data",
     num_episodes: int = 10,
     steps_per_episode: int = 50,
-    instructions: List[str] = None
+    instructions: List[str] = None,
+    domain_randomization: bool = True,
+    num_obstacles: int = 3
 ):
-    """Collect synthetic training data - self-contained without jetbot imports."""
-    print(f"Collecting synthetic data...")
+    """
+    Collect synthetic training data with domain randomization.
+
+    Args:
+        output_dir: Directory to save data
+        num_episodes: Number of episodes to collect
+        steps_per_episode: Steps per episode
+        instructions: List of instructions to use
+        domain_randomization: Enable visual diversity (obstacles, lighting, colors)
+        num_obstacles: Number of obstacles per episode (0-5)
+    """
+    print(f"Collecting synthetic data with domain randomization...")
     print(f"  Episodes: {num_episodes}")
     print(f"  Steps per episode: {steps_per_episode}")
+    print(f"  Domain randomization: {domain_randomization}")
+    print(f"  Obstacles per scene: {num_obstacles}")
     print(f"  Output: {output_dir}")
 
     if instructions is None:
@@ -207,33 +363,34 @@ def collect_synthetic_data(
             wheel_base=0.1
         )
 
-        # Find or create camera
+        # Create camera ATTACHED TO ROBOT CHASSIS for first-person view
+        # This is CRITICAL - camera must move with the robot
         import omni.usd
         from pxr import UsdGeom, Gf
         from omni.isaac.core.utils.prims import create_prim
 
         stage = omni.usd.get_context().get_stage()
 
-        # First, search for existing camera prim in the JetBot USD
-        camera_prim_path = None
-        for prim in stage.Traverse():
-            if prim.IsA(UsdGeom.Camera):
-                camera_prim_path = str(prim.GetPath())
-                print(f"Found existing camera at: {camera_prim_path}")
-                break
+        # Create camera as child of robot chassis (first-person view)
+        camera_prim_path = "/World/JetBot/chassis/front_camera"
+        print(f"Creating first-person camera at: {camera_prim_path}")
+        create_prim(camera_prim_path, "Camera")
 
-        # If no camera found, create one at world level (not attached to robot)
-        if camera_prim_path is None:
-            camera_prim_path = "/World/Camera"
-            print(f"No camera found in USD, creating at: {camera_prim_path}")
-            create_prim(camera_prim_path, "Camera")
+        # Position camera on front of robot, looking forward
+        camera_prim = stage.GetPrimAtPath(camera_prim_path)
+        xform = UsdGeom.Xformable(camera_prim)
+        xform.ClearXformOpOrder()
+        # Position: front of robot (x=0.08), centered (y=0), slightly elevated (z=0.05)
+        xform.AddTranslateOp().Set(Gf.Vec3d(0.08, 0.0, 0.05))
+        # Rotation: looking forward along robot's X-axis
+        # In USD, camera looks down -Z by default, so rotate to look along +X
+        xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 90, 0))
 
-            # Position camera to look at the scene from above/front
-            camera_prim = stage.GetPrimAtPath(camera_prim_path)
-            xform = UsdGeom.Xformable(camera_prim)
-            xform.ClearXformOpOrder()
-            xform.AddTranslateOp().Set(Gf.Vec3d(0.5, 0.0, 0.3))  # In front, slightly elevated
-            xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 30, 180))  # Looking back at robot
+        # Set camera properties for wide-angle navigation view
+        camera_geom = UsdGeom.Camera(camera_prim)
+        camera_geom.GetFocalLengthAttr().Set(18.0)  # Wide angle
+        camera_geom.GetHorizontalApertureAttr().Set(20.955)
+        camera_geom.GetClippingRangeAttr().Set(Gf.Vec2f(0.01, 10.0))
 
         # IMPORTANT: Reset world BEFORE camera initialization
         world.reset()
@@ -247,22 +404,73 @@ def collect_synthetic_data(
         camera.initialize()
 
         # Warm-up frames for camera to initialize properly
-        print("Warming up camera...")
+        print("Warming up camera (first-person view attached to robot)...")
         for _ in range(20):
             world.step(render=True)
 
         total_samples = 0
+        obstacle_paths = []
 
         for episode in range(num_episodes):
+            # Remove previous obstacles
+            if obstacle_paths:
+                remove_obstacles(stage, obstacle_paths)
+                obstacle_paths = []
+
             # Reset robot position
             world.reset()
 
-            # Let simulation settle
-            for _ in range(5):
+            # Randomize robot starting pose for diversity
+            if domain_randomization:
+                # Random position within a small area
+                rand_x = np.random.uniform(-0.3, 0.3)
+                rand_y = np.random.uniform(-0.3, 0.3)
+
+                # Random orientation (yaw only, in radians)
+                rand_yaw = np.random.uniform(-np.pi, np.pi)
+
+                # Convert yaw to quaternion (w, x, y, z format)
+                # For rotation around Z-axis: q = [cos(yaw/2), 0, 0, sin(yaw/2)]
+                quat_w = np.cos(rand_yaw / 2)
+                quat_z = np.sin(rand_yaw / 2)
+                orientation = np.array([quat_w, 0.0, 0.0, quat_z])
+
+                jetbot.set_world_pose(
+                    position=np.array([rand_x, rand_y, 0.05]),
+                    orientation=orientation
+                )
+
+            # Domain randomization for this episode
+            if domain_randomization:
+                # Add random obstacles
+                actual_num_obstacles = np.random.randint(0, num_obstacles + 1)
+                if actual_num_obstacles > 0:
+                    obstacle_paths = create_random_obstacles(stage, actual_num_obstacles)
+
+                # Randomize lighting
+                try:
+                    randomize_lighting(stage)
+                except Exception as e:
+                    pass  # Lighting randomization is optional
+
+                # Randomize ground color
+                try:
+                    randomize_ground_color(stage)
+                except Exception as e:
+                    pass  # Ground color randomization is optional
+
+            # Let simulation settle after changes
+            for _ in range(10):
                 world.step(render=True)
 
             # Select random instruction for this episode
             instruction = np.random.choice(instructions)
+
+            # Track obstacle info for metadata
+            scene_info = {
+                'num_obstacles': len(obstacle_paths),
+                'has_obstacles': len(obstacle_paths) > 0
+            }
 
             for step in range(steps_per_episode):
                 # Get camera image
@@ -285,7 +493,7 @@ def collect_synthetic_data(
                 img_pil = Image.fromarray(rgb.astype(np.uint8))
                 img_pil.save(save_path / f"{sample_id}.jpg", quality=95)
 
-                # Save metadata
+                # Save metadata (including scene info)
                 metadata = {
                     'instruction': instruction,
                     'action': {
@@ -295,7 +503,9 @@ def collect_synthetic_data(
                     'episode': episode,
                     'step': step,
                     'timestamp': time.time(),
-                    'source': 'isaac_sim'
+                    'source': 'isaac_sim',
+                    'domain_randomization': domain_randomization,
+                    'scene': scene_info
                 }
                 with open(save_path / f"{sample_id}.json", 'w') as f:
                     json.dump(metadata, f, indent=2)
@@ -308,7 +518,12 @@ def collect_synthetic_data(
 
                 total_samples += 1
 
-            print(f"Episode {episode+1}/{num_episodes} complete ({total_samples} samples)")
+            print(f"Episode {episode+1}/{num_episodes} complete "
+                  f"({total_samples} samples, {len(obstacle_paths)} obstacles)")
+
+        # Cleanup
+        if obstacle_paths:
+            remove_obstacles(stage, obstacle_paths)
 
         print(f"\nData collection complete: {total_samples} samples saved to {save_path}")
         simulation_app.close()
@@ -531,6 +746,17 @@ def main():
         default='/workspace/sim_data',
         help='Output directory for data'
     )
+    parser.add_argument(
+        '--no-domain-randomization',
+        action='store_true',
+        help='Disable domain randomization (obstacles, lighting, colors)'
+    )
+    parser.add_argument(
+        '--obstacles',
+        type=int,
+        default=3,
+        help='Max number of obstacles per scene (0-5)'
+    )
 
     args = parser.parse_args()
 
@@ -545,7 +771,9 @@ def main():
         collect_synthetic_data(
             output_dir=args.output,
             num_episodes=args.episodes,
-            steps_per_episode=args.steps
+            steps_per_episode=args.steps,
+            domain_randomization=not args.no_domain_randomization,
+            num_obstacles=args.obstacles
         )
 
     if args.test_vla:
