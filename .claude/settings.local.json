@@ -22,7 +22,8 @@
       "Bash(python3:*)",
       "Bash(du:*)",
       "Bash(python -m jetbot.isaac_sim.collect_language_data:*)",
-      "Bash(pip3 install:*)"
+      "Bash(pip3 install:*)",
+      "Bash(git merge-base master smallVLA isaac-sim)"
     ]
   }
 }
