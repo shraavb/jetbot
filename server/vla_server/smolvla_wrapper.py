@@ -38,7 +38,7 @@ class SmolVLAWrapper:
     """
 
     # Default model configurations
-    DEFAULT_MODEL_ID = "HuggingFaceM4/SmolVLM-Instruct"  # Base VLM, will add action head
+    DEFAULT_MODEL_ID = "HuggingFaceTB/SmolVLM-Instruct"  # Base VLM, will add action head
     SMOLVLA_MODEL_ID = "lerobot/smolvla"  # If available
 
     def __init__(
