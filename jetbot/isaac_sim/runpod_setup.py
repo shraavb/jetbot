@@ -103,9 +103,9 @@ def create_random_obstacles(stage, num_obstacles: int = 3) -> List[str]:
 
     for i in range(num_obstacles):
         # Random position (in front of robot, spread out)
-        x = np.random.uniform(0.3, 1.5)
-        y = np.random.uniform(-0.8, 0.8)
-        z = 0.05  # Slightly above ground
+        x = np.random.uniform(0.3, 1.2)
+        y = np.random.uniform(-0.6, 0.6)
+        z = 0.0  # At ground level
 
         # Random size
         size = np.random.uniform(0.05, 0.15)
@@ -301,7 +301,7 @@ def collect_synthetic_data(
     steps_per_episode: int = 50,
     instructions: List[str] = None,
     domain_randomization: bool = True,
-    num_obstacles: int = 3
+    num_obstacles: int = 20
 ):
     """
     Collect synthetic training data with domain randomization.
@@ -383,16 +383,13 @@ def collect_synthetic_data(
         # Position: front of robot (x=0.1), centered (y=0), elevated (z=0.06)
         # Camera at front of robot, slightly elevated to see over robot body
         xform.AddTranslateOp().Set(Gf.Vec3d(0.1, 0.0, 0.06))
-        # Rotation: USD camera looks down -Z by default
-        # We need the camera to look forward (along robot's +X axis) and slightly down
-        # Using RotateXYZ (applies X, then Y, then Z):
-        # - First rotate -90 around Y to point camera along +X (forward)
-        # - Then rotate around the new X axis to tilt down
-        # However, RotateXYZ applies in intrinsic order, so we need:
-        # - 90 around X tilts the camera down (positive X = tilt down after Y rotation)
-        # - -90 around Y points camera along +X direction
-        # Tilt down 15 degrees to see ground plane with obstacles
-        xform.AddRotateXYZOp().Set(Gf.Vec3d(15, -90, 0))
+        # Rotation: USD camera looks down -Z by default, with +Y up
+        # Isaac Sim world uses +Z up, +X forward
+        # To convert USD camera to look forward horizontally in Isaac Sim:
+        # - -90 around Y: points camera's -Z toward world +X (forward)
+        # - -90 around Z: aligns camera's +Y with world +Z (up)
+        # Result: camera looks forward, parallel to ground
+        xform.AddRotateXYZOp().Set(Gf.Vec3d(0, -90, -90))
 
         # Set camera properties for wide-angle navigation view
         camera_geom = UsdGeom.Camera(camera_prim)
@@ -450,10 +447,9 @@ def collect_synthetic_data(
 
             # Domain randomization for this episode
             if domain_randomization:
-                # Add random obstacles
-                actual_num_obstacles = np.random.randint(0, num_obstacles + 1)
-                if actual_num_obstacles > 0:
-                    obstacle_paths = create_random_obstacles(stage, actual_num_obstacles)
+                # Add random obstacles (always at least 5)
+                actual_num_obstacles = np.random.randint(5, num_obstacles + 1)
+                obstacle_paths = create_random_obstacles(stage, actual_num_obstacles)
 
                 # Randomize lighting
                 try:
