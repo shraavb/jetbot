@@ -614,6 +614,49 @@ def test_vla_in_simulation(
         )
         camera.initialize()
 
+        # Add colored obstacles for complex instruction testing
+        print("Adding colored obstacles to scene...")
+        from pxr import UsdShade, Sdf
+
+        # Create a red sphere (ball) in front of the robot
+        red_ball_path = "/World/RedBall"
+        create_prim(red_ball_path, "Sphere")
+        red_ball = stage.GetPrimAtPath(red_ball_path)
+        sphere = UsdGeom.Sphere(red_ball)
+        sphere.GetRadiusAttr().Set(0.05)
+        xform = UsdGeom.Xformable(red_ball)
+        xform.ClearXformOpOrder()
+        xform.AddTranslateOp().Set(Gf.Vec3d(0.5, 0.2, 0.05))  # In front and slightly right
+        gprim = UsdGeom.Gprim(red_ball)
+        gprim.GetDisplayColorAttr().Set([Gf.Vec3f(0.9, 0.1, 0.1)])  # Red
+
+        # Create a blue cube
+        blue_cube_path = "/World/BlueCube"
+        create_prim(blue_cube_path, "Cube")
+        blue_cube = stage.GetPrimAtPath(blue_cube_path)
+        cube = UsdGeom.Cube(blue_cube)
+        cube.GetSizeAttr().Set(0.08)
+        xform = UsdGeom.Xformable(blue_cube)
+        xform.ClearXformOpOrder()
+        xform.AddTranslateOp().Set(Gf.Vec3d(0.4, -0.3, 0.04))  # In front and left
+        gprim = UsdGeom.Gprim(blue_cube)
+        gprim.GetDisplayColorAttr().Set([Gf.Vec3f(0.1, 0.1, 0.9)])  # Blue
+
+        # Create a green cylinder
+        green_cyl_path = "/World/GreenCylinder"
+        create_prim(green_cyl_path, "Cylinder")
+        green_cyl = stage.GetPrimAtPath(green_cyl_path)
+        cyl = UsdGeom.Cylinder(green_cyl)
+        cyl.GetRadiusAttr().Set(0.04)
+        cyl.GetHeightAttr().Set(0.1)
+        xform = UsdGeom.Xformable(green_cyl)
+        xform.ClearXformOpOrder()
+        xform.AddTranslateOp().Set(Gf.Vec3d(0.7, 0.0, 0.05))  # Farther ahead
+        gprim = UsdGeom.Gprim(green_cyl)
+        gprim.GetDisplayColorAttr().Set([Gf.Vec3f(0.1, 0.8, 0.1)])  # Green
+
+        print("  Added: Red ball at (0.5, 0.2), Blue cube at (0.4, -0.3), Green cylinder at (0.7, 0.0)")
+
         # Warm-up
         for _ in range(20):
             world.step(render=True)
