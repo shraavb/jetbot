@@ -1,0 +1,11 @@
+{
+  "instruction": "go around the obstacle",
+  "action": {
+    "left_speed": 0.34271423033832255,
+    "right_speed": 0.5329496612682395
+  },
+  "episode": 57,
+  "step": 13,
+  "timestamp": 1767489126.3161938,
+  "source": "isaac_sim"
+}

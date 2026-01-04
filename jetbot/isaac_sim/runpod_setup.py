@@ -319,6 +319,161 @@ def collect_synthetic_data(
         traceback.print_exc()
 
 
+def test_vla_in_simulation(
+    vla_host: str = 'localhost',
+    vla_port: int = 5555,
+    instruction: str = 'go forward',
+    max_steps: int = 100
+):
+    """Test VLA model in Isaac Sim simulation."""
+    import zmq
+    import io
+    from PIL import Image
+
+    print(f"Testing VLA in simulation...")
+    print(f"  VLA server: {vla_host}:{vla_port}")
+    print(f"  Instruction: {instruction}")
+    print(f"  Max steps: {max_steps}")
+
+    try:
+        from isaacsim import SimulationApp
+        simulation_app = SimulationApp({"headless": True})
+
+        from omni.isaac.core import World
+        from omni.isaac.wheeled_robots.robots import WheeledRobot
+        from omni.isaac.wheeled_robots.controllers.differential_controller import DifferentialController
+        from omni.isaac.sensor import Camera
+
+        # Create world
+        world = World()
+        world.scene.add_default_ground_plane()
+
+        # Load JetBot
+        jetbot_path = "/workspace/assets/jetbot.usd"
+        if not os.path.exists(jetbot_path):
+            jetbot_path = download_jetbot_asset()
+
+        jetbot = world.scene.add(
+            WheeledRobot(
+                prim_path="/World/JetBot",
+                name="jetbot",
+                wheel_dof_names=["left_wheel_joint", "right_wheel_joint"],
+                create_robot=True,
+                usd_path=jetbot_path,
+            )
+        )
+
+        controller = DifferentialController(
+            name="diff_controller",
+            wheel_radius=0.0325,
+            wheel_base=0.1
+        )
+
+        # Find or create camera
+        import omni.usd
+        from pxr import UsdGeom, Gf
+        from omni.isaac.core.utils.prims import create_prim
+
+        stage = omni.usd.get_context().get_stage()
+        camera_prim_path = None
+        for prim in stage.Traverse():
+            if prim.IsA(UsdGeom.Camera):
+                camera_prim_path = str(prim.GetPath())
+                break
+
+        if camera_prim_path is None:
+            camera_prim_path = "/World/Camera"
+            create_prim(camera_prim_path, "Camera")
+            camera_prim = stage.GetPrimAtPath(camera_prim_path)
+            xform = UsdGeom.Xformable(camera_prim)
+            xform.ClearXformOpOrder()
+            xform.AddTranslateOp().Set(Gf.Vec3d(0.5, 0.0, 0.3))
+            xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 30, 180))
+
+        world.reset()
+
+        camera = Camera(
+            prim_path=camera_prim_path,
+            resolution=(224, 224),
+            frequency=30
+        )
+        camera.initialize()
+
+        # Warm-up
+        for _ in range(20):
+            world.step(render=True)
+
+        # Connect to VLA server
+        context = zmq.Context()
+        socket = context.socket(zmq.REQ)
+        socket.connect(f"tcp://{vla_host}:{vla_port}")
+        print(f"Connected to VLA server at {vla_host}:{vla_port}")
+
+        # Run VLA-guided navigation
+        positions = []
+        actions = []
+
+        for step in range(max_steps):
+            world.step(render=True)
+            rgba = camera.get_rgba()
+
+            if rgba is None:
+                print(f"Warning: No camera image at step {step}")
+                continue
+
+            rgb = rgba[:, :, :3]
+
+            # Convert to JPEG for sending
+            img_pil = Image.fromarray(rgb.astype(np.uint8))
+            buffer = io.BytesIO()
+            img_pil.save(buffer, format='JPEG', quality=95)
+            jpeg_bytes = buffer.getvalue()
+
+            # Send to VLA server
+            socket.send_multipart([jpeg_bytes, instruction.encode('utf-8')])
+
+            # Receive response
+            response = socket.recv_multipart()
+            if response[0] == b'ERROR':
+                print(f"VLA error: {response[1].decode('utf-8')}")
+                break
+
+            left_speed = float(response[0].decode('utf-8'))
+            right_speed = float(response[1].decode('utf-8'))
+
+            # Apply action
+            linear = (left_speed + right_speed) / 2.0 * 0.3
+            angular = (right_speed - left_speed) / 0.1 * 0.3
+            wheel_velocities = controller.forward([linear, angular])
+            jetbot.apply_wheel_actions(wheel_velocities)
+
+            # Record
+            pos, _ = jetbot.get_world_pose()
+            positions.append(pos.tolist())
+            actions.append((left_speed, right_speed))
+
+            if step % 10 == 0:
+                print(f"Step {step}: pos=[{pos[0]:.3f}, {pos[1]:.3f}], "
+                      f"action=[{left_speed:.3f}, {right_speed:.3f}]")
+
+        print(f"\nVLA test complete!")
+        print(f"  Total steps: {len(positions)}")
+        if positions:
+            start = positions[0]
+            end = positions[-1]
+            distance = np.sqrt((end[0]-start[0])**2 + (end[1]-start[1])**2)
+            print(f"  Distance traveled: {distance:.3f}m")
+
+        socket.close()
+        context.term()
+        simulation_app.close()
+
+    except Exception as e:
+        print(f"VLA test failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='RunPod Setup for JetBot VLA Simulation (Self-contained)'
@@ -337,6 +492,27 @@ def main():
         '--collect-data',
         action='store_true',
         help='Collect synthetic training data'
+    )
+    parser.add_argument(
+        '--test-vla',
+        action='store_true',
+        help='Test VLA model in simulation'
+    )
+    parser.add_argument(
+        '--vla-host',
+        default='localhost',
+        help='VLA server host'
+    )
+    parser.add_argument(
+        '--vla-port',
+        type=int,
+        default=5555,
+        help='VLA server port'
+    )
+    parser.add_argument(
+        '--instruction',
+        default='go forward',
+        help='Navigation instruction for VLA test'
     )
     parser.add_argument(
         '--episodes',
@@ -372,7 +548,15 @@ def main():
             steps_per_episode=args.steps
         )
 
-    if not any([args.download_assets, args.test_sim, args.collect_data]):
+    if args.test_vla:
+        test_vla_in_simulation(
+            vla_host=args.vla_host,
+            vla_port=args.vla_port,
+            instruction=args.instruction,
+            max_steps=args.steps
+        )
+
+    if not any([args.download_assets, args.test_sim, args.collect_data, args.test_vla]):
         parser.print_help()
 
 

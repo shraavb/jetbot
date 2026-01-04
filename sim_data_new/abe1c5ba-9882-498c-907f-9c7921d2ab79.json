@@ -1,0 +1,11 @@
+{
+  "instruction": "go backward",
+  "action": {
+    "left_speed": -0.3850996483521237,
+    "right_speed": -0.2579896500158503
+  },
+  "episode": 76,
+  "step": 27,
+  "timestamp": 1767489168.1863616,
+  "source": "isaac_sim"
+}

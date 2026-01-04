@@ -1,0 +1,11 @@
+{
+  "instruction": "go forward",
+  "action": {
+    "left_speed": 0.5013547110867528,
+    "right_speed": 0.42184407671492546
+  },
+  "episode": 2,
+  "step": 37,
+  "timestamp": 1767483164.3827832,
+  "source": "isaac_sim"
+}

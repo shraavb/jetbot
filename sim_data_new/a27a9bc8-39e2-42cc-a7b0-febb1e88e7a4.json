@@ -1,0 +1,11 @@
+{
+  "instruction": "navigate to the goal",
+  "action": {
+    "left_speed": 0.42889875462961835,
+    "right_speed": 0.24832062494344515
+  },
+  "episode": 97,
+  "step": 41,
+  "timestamp": 1767489214.2391312,
+  "source": "isaac_sim"
+}

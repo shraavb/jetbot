@@ -1,0 +1,11 @@
+{
+  "instruction": "approach the object",
+  "action": {
+    "left_speed": 0.016100183369899768,
+    "right_speed": 0.34006867937354535
+  },
+  "episode": 82,
+  "step": 27,
+  "timestamp": 1767489181.3881168,
+  "source": "isaac_sim"
+}

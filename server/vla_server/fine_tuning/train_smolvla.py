@@ -152,8 +152,8 @@ class SmolVLATrainer:
         Returns:
             Hidden states tensor
         """
-        # Format prompts
-        prompts = [f"What action should the robot take to {inst}?"
+        # Format prompts with <image> token for SmolVLM
+        prompts = [f"<image>What action should the robot take to {inst}?"
                    for inst in instructions]
 
         # Process inputs

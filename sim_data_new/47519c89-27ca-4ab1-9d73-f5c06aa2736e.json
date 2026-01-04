@@ -1,0 +1,11 @@
+{
+  "instruction": "explore the area",
+  "action": {
+    "left_speed": 0.23156519792910402,
+    "right_speed": 0.44095057929819625
+  },
+  "episode": 58,
+  "step": 27,
+  "timestamp": 1767489128.8506887,
+  "source": "isaac_sim"
+}

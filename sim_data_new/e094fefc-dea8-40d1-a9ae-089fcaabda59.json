@@ -1,0 +1,11 @@
+{
+  "instruction": "avoid the obstacle",
+  "action": {
+    "left_speed": 0.24096435330279903,
+    "right_speed": 0.4203668456558181
+  },
+  "episode": 89,
+  "step": 32,
+  "timestamp": 1767489196.6806042,
+  "source": "isaac_sim"
+}

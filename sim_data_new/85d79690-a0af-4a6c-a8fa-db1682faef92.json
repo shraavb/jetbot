@@ -1,0 +1,11 @@
+{
+  "instruction": "halt",
+  "action": {
+    "left_speed": -0.04636445591698532,
+    "right_speed": 0.027839347527763954
+  },
+  "episode": 62,
+  "step": 16,
+  "timestamp": 1767489136.975176,
+  "source": "isaac_sim"
+}
