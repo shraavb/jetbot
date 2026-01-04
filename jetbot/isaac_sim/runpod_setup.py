@@ -380,14 +380,19 @@ def collect_synthetic_data(
         camera_prim = stage.GetPrimAtPath(camera_prim_path)
         xform = UsdGeom.Xformable(camera_prim)
         xform.ClearXformOpOrder()
-        # Position: front of robot (x=0.1), centered (y=0), elevated (z=0.08)
-        # Raised higher and moved forward to see over the robot body
-        xform.AddTranslateOp().Set(Gf.Vec3d(0.1, 0.0, 0.08))
+        # Position: front of robot (x=0.1), centered (y=0), elevated (z=0.06)
+        # Camera at front of robot, slightly elevated to see over robot body
+        xform.AddTranslateOp().Set(Gf.Vec3d(0.1, 0.0, 0.06))
         # Rotation: USD camera looks down -Z by default
-        # To look forward along +X: rotate 90 deg around Y, then tilt up slightly
-        # RotateXYZ applies in order: X, then Y, then Z
-        # -90 around Y points camera along +X, -10 around X tilts up slightly
-        xform.AddRotateXYZOp().Set(Gf.Vec3d(-10, -90, 0))
+        # We need the camera to look forward (along robot's +X axis) and slightly down
+        # Using RotateXYZ (applies X, then Y, then Z):
+        # - First rotate -90 around Y to point camera along +X (forward)
+        # - Then rotate around the new X axis to tilt down
+        # However, RotateXYZ applies in intrinsic order, so we need:
+        # - 90 around X tilts the camera down (positive X = tilt down after Y rotation)
+        # - -90 around Y points camera along +X direction
+        # Tilt down 15 degrees to see ground plane with obstacles
+        xform.AddRotateXYZOp().Set(Gf.Vec3d(15, -90, 0))
 
         # Set camera properties for wide-angle navigation view
         camera_geom = UsdGeom.Camera(camera_prim)
