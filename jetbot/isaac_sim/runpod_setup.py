@@ -638,14 +638,14 @@ def test_vla_in_simulation(
 
             rgb = rgba[:, :, :3]
 
-            # Convert to JPEG for sending
+            # Convert to PNG for sending (JPEG has PIL version issues in Isaac Sim)
             img_pil = Image.fromarray(rgb.astype(np.uint8))
             buffer = io.BytesIO()
-            img_pil.save(buffer, format='JPEG', quality=95)
-            jpeg_bytes = buffer.getvalue()
+            img_pil.save(buffer, format='PNG')
+            image_bytes = buffer.getvalue()
 
             # Send to VLA server
-            socket.send_multipart([jpeg_bytes, instruction.encode('utf-8')])
+            socket.send_multipart([image_bytes, instruction.encode('utf-8')])
 
             # Receive response
             response = socket.recv_multipart()
