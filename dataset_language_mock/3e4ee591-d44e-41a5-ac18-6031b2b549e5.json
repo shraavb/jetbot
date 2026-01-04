@@ -1,0 +1,10 @@
+{
+  "instruction": "head towards the cone",
+  "action": {
+    "left_speed": 0.4285965048413485,
+    "right_speed": 0.39741363332947466
+  },
+  "episode_step": 20,
+  "timestamp": 1767543583.288024,
+  "source": "mock"
+}

@@ -1,0 +1,10 @@
+{
+  "instruction": "go to the box",
+  "action": {
+    "left_speed": 0.4784551363752761,
+    "right_speed": 0.6453899112596533
+  },
+  "episode_step": 32,
+  "timestamp": 1767543583.1458461,
+  "source": "mock"
+}

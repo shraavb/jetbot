@@ -1,0 +1,11 @@
+{
+  "instruction": "rotate left",
+  "action": {
+    "left_speed": 0.0638288401648053,
+    "right_speed": 0.42287307007649577
+  },
+  "episode": 35,
+  "step": 16,
+  "timestamp": 1767489079.0263972,
+  "source": "isaac_sim"
+}

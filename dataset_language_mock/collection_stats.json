@@ -1,0 +1,6 @@
+{
+  "num_episodes": 10,
+  "total_samples": 500,
+  "duration_seconds": 0.311007022857666,
+  "output_dir": "dataset_language_mock"
+}

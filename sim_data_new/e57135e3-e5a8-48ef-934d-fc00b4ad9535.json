@@ -1,0 +1,11 @@
+{
+  "instruction": "follow the path",
+  "action": {
+    "left_speed": 0.3525148537757914,
+    "right_speed": 0.42405317361726047
+  },
+  "episode": 52,
+  "step": 25,
+  "timestamp": 1767489116.1652336,
+  "source": "isaac_sim"
+}

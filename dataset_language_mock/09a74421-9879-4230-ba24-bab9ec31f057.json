@@ -1,0 +1,10 @@
+{
+  "instruction": "go in the direction of the green box",
+  "action": {
+    "left_speed": 0.22846691723112258,
+    "right_speed": 0.315998150546829
+  },
+  "episode_step": 44,
+  "timestamp": 1767543583.253311,
+  "source": "mock"
+}

@@ -1,0 +1,11 @@
+{
+  "instruction": "drive straight ahead",
+  "action": {
+    "left_speed": 0.6437940641362438,
+    "right_speed": 0.6840255076482744
+  },
+  "episode": 2,
+  "step": 30,
+  "timestamp": 1767489005.9358253,
+  "source": "isaac_sim"
+}

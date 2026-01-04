@@ -7,6 +7,8 @@ responses to natural language commands like:
 - "follow the person in front of you"
 - "go around the chair"
 - "go towards the door"
+- "avoid colliding into the jetbot"
+- "swerve around the jetbot in front of you"
 
 Usage:
     from jetbot.isaac_sim.experiment_scene import ExperimentScene
@@ -15,6 +17,7 @@ Usage:
     scene.setup()
     scene.add_red_ball(position=[2.0, 0.0, 0.15])
     scene.add_chair(position=[1.5, 1.0, 0.0])
+    scene.add_jetbot(position=[1.0, 0.5, 0.0], orientation=0.0)
 """
 
 import numpy as np
@@ -597,6 +600,166 @@ class ExperimentScene:
 
         return obj
 
+    def add_jetbot(
+        self,
+        position: List[float],
+        orientation: float = 0.0,
+        color: ObjectColor = ObjectColor.BLACK,
+        name: str = "other_jetbot",
+        use_usd: bool = True
+    ) -> SceneObject:
+        """
+        Add another JetBot robot to the scene as an obstacle.
+
+        This allows testing collision avoidance and commands like:
+        - "avoid colliding into the jetbot"
+        - "swerve around the jetbot in front of you"
+        - "go around the other robot"
+
+        Args:
+            position: [x, y, z] position
+            orientation: Yaw angle in radians
+            color: JetBot body color (for visual representation)
+            name: Object name
+            use_usd: Whether to load the actual JetBot USD asset
+
+        Returns:
+            SceneObject representing the JetBot
+        """
+        self._lazy_import_isaac()
+
+        # Ensure unique name
+        base_name = name
+        counter = 1
+        while name in self._objects:
+            name = f"{base_name}_{counter}"
+            counter += 1
+
+        prim_path = f"/World/Experiment/{name}"
+
+        if use_usd:
+            try:
+                # Try to load actual JetBot USD as a visual/static object
+                from omni.isaac.core.utils.nucleus import get_assets_root_path
+                import omni.kit.commands
+
+                assets_root = get_assets_root_path()
+                jetbot_usd = f"{assets_root}/Isaac/Robots/Jetbot/jetbot.usd"
+
+                # Add as reference (static, not controllable)
+                omni.kit.commands.execute(
+                    'CreateReferenceCommand',
+                    usd_context=omni.usd.get_context(),
+                    path_to=prim_path,
+                    asset_path=jetbot_usd
+                )
+
+                # Set position and orientation
+                from omni.isaac.core.prims import XFormPrim
+                xform = XFormPrim(prim_path=prim_path)
+
+                # Convert yaw to quaternion [w, x, y, z]
+                quat = np.array([
+                    np.cos(orientation / 2),
+                    0,
+                    0,
+                    np.sin(orientation / 2)
+                ])
+
+                xform.set_world_pose(
+                    position=np.array(position),
+                    orientation=quat
+                )
+
+                obj = SceneObject(
+                    name=name,
+                    prim_path=prim_path,
+                    position=np.array(position),
+                    object_type='jetbot',
+                    color=color,
+                    scale=np.array([0.15, 0.12, 0.08]),  # Approximate JetBot dimensions
+                    usd_path=jetbot_usd
+                )
+
+            except Exception as e:
+                print(f"Warning: Could not load JetBot USD, using visual approximation: {e}")
+                use_usd = False
+
+        if not use_usd:
+            # Create visual approximation of JetBot using primitives
+            # JetBot approximate dimensions: 15cm x 12cm x 8cm
+
+            # Main body (chassis)
+            body = self._world.scene.add(
+                self._VisualCuboid(
+                    prim_path=prim_path,
+                    name=name,
+                    position=np.array([position[0], position[1], 0.04]),
+                    scale=np.array([0.12, 0.10, 0.04]),
+                    color=np.array(color.value)
+                )
+            )
+
+            # Wheels (left and right)
+            wheel_color = np.array([0.2, 0.2, 0.2])  # Dark gray
+            wheel_radius = 0.03
+            wheel_width = 0.02
+
+            for side, y_offset in [('left', -0.055), ('right', 0.055)]:
+                self._world.scene.add(
+                    self._VisualCylinder(
+                        prim_path=f"{prim_path}_wheel_{side}",
+                        name=f"{name}_wheel_{side}",
+                        position=np.array([position[0], position[1] + y_offset, wheel_radius]),
+                        radius=wheel_radius,
+                        height=wheel_width,
+                        color=wheel_color
+                    )
+                )
+
+            # Camera/sensor housing on top
+            self._world.scene.add(
+                self._VisualCuboid(
+                    prim_path=f"{prim_path}_camera",
+                    name=f"{name}_camera",
+                    position=np.array([position[0] + 0.03, position[1], 0.08]),
+                    scale=np.array([0.04, 0.04, 0.04]),
+                    color=np.array([0.1, 0.1, 0.1])  # Black
+                )
+            )
+
+            # Jetson Nano representation
+            self._world.scene.add(
+                self._VisualCuboid(
+                    prim_path=f"{prim_path}_jetson",
+                    name=f"{name}_jetson",
+                    position=np.array([position[0] - 0.02, position[1], 0.07]),
+                    scale=np.array([0.06, 0.08, 0.02]),
+                    color=np.array([0.0, 0.5, 0.0])  # Green PCB
+                )
+            )
+
+            obj = SceneObject(
+                name=name,
+                prim_path=prim_path,
+                position=np.array(position),
+                object_type='jetbot',
+                color=color,
+                scale=np.array([0.15, 0.12, 0.08])
+            )
+
+        self._objects[name] = obj
+        return obj
+
+    def add_robot(
+        self,
+        position: List[float],
+        orientation: float = 0.0,
+        name: str = "robot"
+    ) -> SceneObject:
+        """Alias for add_jetbot for more generic naming."""
+        return self.add_jetbot(position, orientation, name=name)
+
     def get_object(self, name: str) -> Optional[SceneObject]:
         """Get object by name."""
         return self._objects.get(name)
@@ -703,6 +866,37 @@ SCENE_CONFIGS = {
         ],
         robot_start_position=np.array([0.0, 0.0, 0.0])
     ),
+
+    'robot_avoidance': SceneConfig(
+        name='robot_avoidance',
+        description='Scene with other JetBots for collision avoidance testing',
+        objects=[
+            {'type': 'jetbot', 'position': [1.0, 0.0, 0.0], 'orientation': 3.14},  # Facing ego robot
+            {'type': 'jetbot', 'position': [1.5, 0.8, 0.0], 'orientation': -1.57},
+            {'type': 'jetbot', 'position': [1.5, -0.8, 0.0], 'orientation': 1.57},
+            {'type': 'ball', 'color': 'RED', 'position': [3.0, 0.0, 0.15]},  # Target behind robots
+        ],
+        robot_start_position=np.array([0.0, 0.0, 0.0])
+    ),
+
+    'multi_robot': SceneConfig(
+        name='multi_robot',
+        description='Complex scene with multiple robots and objects for comprehensive testing',
+        objects=[
+            # Other JetBots as obstacles
+            {'type': 'jetbot', 'position': [1.2, 0.3, 0.0], 'orientation': 0.0, 'name': 'jetbot_front'},
+            {'type': 'jetbot', 'position': [0.8, -0.5, 0.0], 'orientation': 0.5, 'name': 'jetbot_right'},
+            {'type': 'jetbot', 'position': [2.0, 0.0, 0.0], 'orientation': 3.14, 'name': 'jetbot_far'},
+            # Colored targets
+            {'type': 'ball', 'color': 'RED', 'position': [3.0, 1.0, 0.15]},
+            {'type': 'ball', 'color': 'BLUE', 'position': [3.0, -1.0, 0.15]},
+            # Furniture obstacles
+            {'type': 'chair', 'position': [-1.0, 1.0, 0.0]},
+            {'type': 'person', 'position': [1.5, 1.5, 0.0]},
+            {'type': 'door', 'position': [4.0, 0.0, 0.0]},
+        ],
+        robot_start_position=np.array([0.0, 0.0, 0.0])
+    ),
 }
 
 
@@ -738,3 +932,11 @@ def load_scene_from_config(
         elif obj_type == 'wall':
             size = obj_config.get('size', (0.1, 2.0, 1.0))
             experiment_scene.add_wall(position, size, color or ObjectColor.GRAY, name=name or 'wall')
+        elif obj_type == 'jetbot' or obj_type == 'robot':
+            orientation = obj_config.get('orientation', 0.0)
+            experiment_scene.add_jetbot(
+                position,
+                orientation=orientation,
+                color=color or ObjectColor.BLACK,
+                name=name or 'other_jetbot'
+            )

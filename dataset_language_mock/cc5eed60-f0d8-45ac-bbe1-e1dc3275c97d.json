@@ -1,0 +1,10 @@
+{
+  "instruction": "navigate to the red ball",
+  "action": {
+    "left_speed": 0.48588795699608567,
+    "right_speed": 0.4825221734742735
+  },
+  "episode_step": 31,
+  "timestamp": 1767543583.271343,
+  "source": "mock"
+}

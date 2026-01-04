@@ -1,0 +1,10 @@
+{
+  "instruction": "decelerate near the {object}",
+  "action": {
+    "left_speed": 0.1446476483755013,
+    "right_speed": 0.12287782330785202
+  },
+  "episode_step": 40,
+  "timestamp": 1767543583.1954079,
+  "source": "mock"
+}

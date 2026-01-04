@@ -1,0 +1,11 @@
+{
+  "instruction": "move toward the target",
+  "action": {
+    "left_speed": 0.30791067231664393,
+    "right_speed": 0.32950715080157134
+  },
+  "episode": 32,
+  "step": 31,
+  "timestamp": 1767489072.7973585,
+  "source": "isaac_sim"
+}

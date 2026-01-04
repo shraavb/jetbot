@@ -1,0 +1,10 @@
+{
+  "instruction": "go in the direction of the green door",
+  "action": {
+    "left_speed": 0.5090392412816053,
+    "right_speed": 0.3930943421156413
+  },
+  "episode_step": 12,
+  "timestamp": 1767543583.3549829,
+  "source": "mock"
+}

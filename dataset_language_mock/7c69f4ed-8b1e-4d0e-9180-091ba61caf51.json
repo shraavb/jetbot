@@ -1,0 +1,10 @@
+{
+  "instruction": "turn right before the door",
+  "action": {
+    "left_speed": 0.4621607628554356,
+    "right_speed": 0.19060477313692287
+  },
+  "episode_step": 1,
+  "timestamp": 1767543583.3018172,
+  "source": "mock"
+}

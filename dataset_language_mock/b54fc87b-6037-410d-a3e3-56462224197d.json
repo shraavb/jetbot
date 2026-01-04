@@ -1,0 +1,10 @@
+{
+  "instruction": "rush to the yellow box but slow near the obstacle",
+  "action": {
+    "left_speed": 0.638819004430317,
+    "right_speed": 0.9554904898478536
+  },
+  "episode_step": 23,
+  "timestamp": 1767543583.167883,
+  "source": "mock"
+}

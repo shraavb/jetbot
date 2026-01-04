@@ -1,0 +1,11 @@
+{
+  "instruction": "turn left",
+  "action": {
+    "left_speed": 0.1997117496841255,
+    "right_speed": 0.5049332044564957
+  },
+  "episode": 17,
+  "step": 21,
+  "timestamp": 1767489036.775059,
+  "source": "isaac_sim"
+}

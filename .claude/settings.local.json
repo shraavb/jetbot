@@ -20,7 +20,9 @@
       "Bash(find:*)",
       "Bash(ls:*)",
       "Bash(python3:*)",
-      "Bash(du:*)"
+      "Bash(du:*)",
+      "Bash(python -m jetbot.isaac_sim.collect_language_data:*)",
+      "Bash(pip3 install:*)"
     ]
   }
 }

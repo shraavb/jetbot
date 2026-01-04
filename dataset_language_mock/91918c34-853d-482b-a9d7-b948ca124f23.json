@@ -1,0 +1,10 @@
+{
+  "instruction": "stop near the yellow ball",
+  "action": {
+    "left_speed": 0.008468680117823051,
+    "right_speed": 0.029094720760553062
+  },
+  "episode_step": 25,
+  "timestamp": 1767543583.3342059,
+  "source": "mock"
+}
