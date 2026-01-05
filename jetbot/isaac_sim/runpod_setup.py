@@ -195,11 +195,12 @@ def spawn_nucleus_asset(stage, asset_path: str, prim_path: str, position: tuple,
         parent_prim = create_prim(prim_path, "Xform")
 
         # Set transform on parent - clear any default ops first
+        # Use explicit PrecisionDouble to avoid type mismatch with cached attributes
         xform = UsdGeom.Xformable(parent_prim)
         xform.ClearXformOpOrder()
-        xform.AddTranslateOp().Set(Gf.Vec3d(*position))
-        xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, rotation_deg))
-        xform.AddScaleOp().Set(Gf.Vec3d(scale, scale, scale))
+        xform.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(*position))
+        xform.AddRotateXYZOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(0, 0, rotation_deg))
+        xform.AddScaleOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(scale, scale, scale))
 
         # Add reference as a child prim to avoid xform op conflicts
         child_path = prim_path + "/asset"
@@ -413,10 +414,10 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             prim = safe_create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(width)
-            # Set transform - use Vec3d for scale to match USD default precision
+            # Set transform - use explicit PrecisionDouble to avoid type mismatch
             xform_temp = UsdGeom.Xformable(prim)
-            xform_temp.AddTranslateOp().Set(Gf.Vec3d(x, y, z + height / 2))
-            xform_temp.AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, height / width))
+            xform_temp.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(x, y, z + height / 2))
+            xform_temp.AddScaleOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(1.0, 1.0, height / width))
             gprim = UsdGeom.Gprim(prim)
             gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
             obstacle_paths.append(prim_path)
@@ -429,10 +430,10 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             prim = safe_create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(width)
-            # Set transform - use Vec3d for scale to match USD default precision
+            # Set transform - use explicit PrecisionDouble to avoid type mismatch
             xform_temp = UsdGeom.Xformable(prim)
-            xform_temp.AddTranslateOp().Set(Gf.Vec3d(x, y, z + height / 2))
-            xform_temp.AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, height / width))
+            xform_temp.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(x, y, z + height / 2))
+            xform_temp.AddScaleOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(1.0, 1.0, height / width))
             gprim = UsdGeom.Gprim(prim)
             gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
             obstacle_paths.append(prim_path)
@@ -467,10 +468,11 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
                     z_offset = 0.0
                     # Random rotation for the other JetBot
                     # Note: safe_create_prim already cleared xform ops
+                    # Use explicit PrecisionDouble to avoid type mismatch
                     random_yaw = np.random.uniform(-np.pi, np.pi)
                     xform = UsdGeom.Xformable(prim)
-                    xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z))
-                    xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, np.degrees(random_yaw)))
+                    xform.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(x, y, z))
+                    xform.AddRotateXYZOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(0, 0, np.degrees(random_yaw)))
                     obstacle_paths.append(prim_path)
                     continue  # Skip the rest of the loop for JetBot
                 except Exception as e:
@@ -575,9 +577,10 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
 
         # Set position (skip if already handled by Nucleus assets or OtherJetBot)
         # Note: safe_create_prim already clears xform ops, so we just add the new ones
+        # Use explicit PrecisionDouble to avoid type mismatch with cached attributes
         if shape_type not in ['OtherJetBot', 'NucleusPerson', 'NucleusProp', 'NucleusTraffic', 'NucleusRobot', 'FlatBox', 'TallBox']:
             xform = UsdGeom.Xformable(prim)
-            xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z + z_offset))
+            xform.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(x, y, z + z_offset))
 
             # Set color via displayColor
             gprim = UsdGeom.Gprim(prim)
