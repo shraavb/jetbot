@@ -143,12 +143,12 @@ echo "Running small test collection (10 episodes)..."
 
 # Uncomment for larger dataset (200 episodes = 10,000 samples)
 # echo "Running full data collection (200 episodes)..."
-# /isaac-sim/python.sh /workspace/jetbot/jetbot/isaac_sim/runpod_setup.py \
-#   --collect-data \
-#   --episodes 200 \
-#   --steps 50 \
-#   --output /workspace/dataset_vla_real \
-#   2>&1 | tee /workspace/collect_data.log
+/isaac-sim/python.sh /workspace/jetbot/jetbot/isaac_sim/runpod_setup.py \
+  --collect-data \
+  --episodes 200 \
+  --steps 50 \
+  --output /workspace/dataset_vla_real \
+  2>&1 | tee /workspace/collect_data.log
 
 # ============================================
 # STEP 8: Verify collected data

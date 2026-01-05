@@ -1,0 +1,16 @@
+{
+  "instruction": "go left",
+  "action": {
+    "left_speed": 0.169294770792337,
+    "right_speed": 0.5038792617658223
+  },
+  "episode": 29,
+  "step": 41,
+  "timestamp": 1767578160.5115979,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 65,
+    "has_obstacles": true
+  }
+}

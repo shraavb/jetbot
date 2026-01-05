@@ -24,7 +24,15 @@
       "Bash(python -m jetbot.isaac_sim.collect_language_data:*)",
       "Bash(pip3 install:*)",
       "Bash(git merge-base master smallVLA isaac-sim)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(git reset:*)",
+      "Bash(xargs cat:*)",
+      "Bash(tar:*)",
+      "Bash(pip3 show:*)",
+      "Bash(for d in /Users/shraavastibhat/jetbot-4/dataset_*)",
+      "Bash(git check-ignore:*)",
+      "Bash(curl:*)",
+      "Bash(gzip:*)"
     ]
   }
 }

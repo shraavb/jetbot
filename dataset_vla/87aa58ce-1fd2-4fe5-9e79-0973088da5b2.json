@@ -1,0 +1,16 @@
+{
+  "instruction": "make a u-turn",
+  "action": {
+    "left_speed": 0.3983325630122089,
+    "right_speed": 0.27357022128089004
+  },
+  "episode": 49,
+  "step": 24,
+  "timestamp": 1767578241.5394082,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 37,
+    "has_obstacles": true
+  }
+}

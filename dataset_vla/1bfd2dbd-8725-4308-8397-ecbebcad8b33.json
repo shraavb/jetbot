@@ -1,0 +1,16 @@
+{
+  "instruction": "steer left",
+  "action": {
+    "left_speed": 0.13468103619919586,
+    "right_speed": 0.6955002979950008
+  },
+  "episode": 126,
+  "step": 38,
+  "timestamp": 1767578556.2049634,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 59,
+    "has_obstacles": true
+  }
+}

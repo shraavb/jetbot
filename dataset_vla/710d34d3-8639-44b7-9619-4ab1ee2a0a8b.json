@@ -1,0 +1,16 @@
+{
+  "instruction": "turn around",
+  "action": {
+    "left_speed": 0.20238236772923257,
+    "right_speed": 0.4644976480719625
+  },
+  "episode": 57,
+  "step": 48,
+  "timestamp": 1767578277.3324158,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 65,
+    "has_obstacles": true
+  }
+}

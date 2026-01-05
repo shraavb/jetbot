@@ -1,0 +1,16 @@
+{
+  "instruction": "stop",
+  "action": {
+    "left_speed": 0.12195045277729047,
+    "right_speed": -0.109561885231411
+  },
+  "episode": 69,
+  "step": 49,
+  "timestamp": 1767578328.4253752,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 68,
+    "has_obstacles": true
+  }
+}
