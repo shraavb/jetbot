@@ -887,12 +887,17 @@ def collect_synthetic_data(
                 linear = (left_speed + right_speed) / 2.0 * 0.3
                 angular = (right_speed - left_speed) / 0.1 * 0.3
                 wheel_velocities = controller.forward([linear, angular])
-                jetbot.apply_wheel_actions(wheel_velocities)
 
-                # Step physics multiple times to let robot actually move
-                # This is critical - wheel actions need time to take effect
-                for _ in range(5):
+                # Apply wheel actions repeatedly over multiple physics steps
+                # This ensures the robot actually moves
+                for _ in range(10):
+                    jetbot.apply_wheel_actions(wheel_velocities)
                     world.step(render=False)
+
+                # Debug: print robot position every few steps
+                if step % 10 == 0:
+                    pos, _ = jetbot.get_world_pose()
+                    print(f"  Step {step}: robot at ({pos[0]:.3f}, {pos[1]:.3f}), action=({left_speed:.2f}, {right_speed:.2f})")
 
                 # Now render and capture image (robot has moved)
                 world.step(render=True)
