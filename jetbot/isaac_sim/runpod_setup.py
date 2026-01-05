@@ -91,9 +91,16 @@ def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
     return str(jetbot_path)
 
 
-def create_random_obstacles(stage, num_obstacles: int = 3) -> List[str]:
+def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0, 0), robot_yaw: float = 0) -> List[str]:
     """
-    Create random colored obstacles in the scene.
+    Create random colored obstacles in the scene, positioned in front of the robot.
+
+    Args:
+        stage: USD stage
+        num_obstacles: Number of obstacles to create
+        robot_pos: (x, y) position of robot in world coords
+        robot_yaw: Robot's yaw angle in radians (0 = facing +X)
+
     Returns list of prim paths for cleanup.
     """
     from pxr import UsdGeom, Gf, UsdShade, Sdf
@@ -102,9 +109,15 @@ def create_random_obstacles(stage, num_obstacles: int = 3) -> List[str]:
     obstacle_paths = []
 
     for i in range(num_obstacles):
-        # Random position (in front of robot, spread out)
-        x = np.random.uniform(0.3, 1.2)
-        y = np.random.uniform(-0.6, 0.6)
+        # Random position in robot's local frame (in front of robot)
+        local_x = np.random.uniform(0.3, 1.2)  # Forward distance
+        local_y = np.random.uniform(-0.6, 0.6)  # Lateral spread
+
+        # Transform to world coordinates based on robot position and yaw
+        cos_yaw = np.cos(robot_yaw)
+        sin_yaw = np.sin(robot_yaw)
+        x = robot_pos[0] + local_x * cos_yaw - local_y * sin_yaw
+        y = robot_pos[1] + local_x * sin_yaw + local_y * cos_yaw
         z = 0.0  # At ground level
 
         # Random size
@@ -426,6 +439,9 @@ def collect_synthetic_data(
             # Reset robot position
             world.reset()
 
+            # Default robot pose (origin, facing +X)
+            rand_x, rand_y, rand_yaw = 0.0, 0.0, 0.0
+
             # Randomize robot starting pose for diversity
             if domain_randomization:
                 # Random position within a small area
@@ -449,8 +465,14 @@ def collect_synthetic_data(
             # Domain randomization for this episode
             if domain_randomization:
                 # Add random obstacles (always at least 5)
+                # Position them in front of the robot based on its pose
                 actual_num_obstacles = np.random.randint(5, num_obstacles + 1)
-                obstacle_paths = create_random_obstacles(stage, actual_num_obstacles)
+                obstacle_paths = create_random_obstacles(
+                    stage,
+                    actual_num_obstacles,
+                    robot_pos=(rand_x, rand_y),
+                    robot_yaw=rand_yaw
+                )
 
                 # Randomize lighting
                 try:
