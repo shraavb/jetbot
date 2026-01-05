@@ -385,11 +385,12 @@ def collect_synthetic_data(
         xform.AddTranslateOp().Set(Gf.Vec3d(0.1, 0.0, 0.06))
         # Rotation: USD camera looks down -Z by default, with +Y up
         # Isaac Sim world uses +Z up, +X forward
-        # To convert USD camera to look forward horizontally in Isaac Sim:
-        # - -90 around Y: points camera's -Z toward world +X (forward)
-        # - -90 around Z: aligns camera's +Y with world +Z (up)
-        # Result: camera looks forward, parallel to ground
-        xform.AddRotateXYZOp().Set(Gf.Vec3d(0, -90, -90))
+        # To make camera look forward along +X with +Z up:
+        # Use rotation (90, 0, -90) which:
+        # - 90 around X: rotates camera so its -Z points toward +Y
+        # - -90 around Z: rotates so -Z now points toward +X (forward)
+        # This aligns the camera to look forward along world +X axis
+        xform.AddRotateXYZOp().Set(Gf.Vec3d(90, 0, -90))
 
         # Set camera properties for wide-angle navigation view
         camera_geom = UsdGeom.Camera(camera_prim)
