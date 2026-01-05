@@ -66,6 +66,14 @@ class JetBotVLADataset(Dataset):
                     print(f"Warning: Image not found for {json_path}")
                     continue
 
+                # Verify image is valid (not truncated)
+                try:
+                    with Image.open(image_path) as img:
+                        img.load()  # Force load to detect truncation
+                except Exception as img_err:
+                    print(f"Warning: Corrupted image {image_path}: {img_err}")
+                    continue
+
                 # Extract action
                 action = meta.get('action', {})
                 left_speed = action.get('left_speed', 0.0)
@@ -89,13 +97,19 @@ class JetBotVLADataset(Dataset):
     def __getitem__(self, idx: int) -> Dict:
         sample = self.samples[idx]
 
-        # Load and resize image
-        image = Image.open(sample['image_path']).convert('RGB')
-        if image.size != (self.image_size, self.image_size):
-            image = image.resize(
-                (self.image_size, self.image_size),
-                Image.LANCZOS
-            )
+        try:
+            # Load and resize image
+            image = Image.open(sample['image_path']).convert('RGB')
+            if image.size != (self.image_size, self.image_size):
+                image = image.resize(
+                    (self.image_size, self.image_size),
+                    Image.LANCZOS
+                )
+        except Exception as e:
+            # Return a placeholder for corrupted images (will be filtered during training)
+            print(f"Warning: Could not load {sample['image_path']}: {e}")
+            # Create a gray placeholder image
+            image = Image.new('RGB', (self.image_size, self.image_size), (128, 128, 128))
 
         if self.transform:
             image = self.transform(image)
