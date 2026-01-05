@@ -500,6 +500,9 @@ def collect_synthetic_data(
                 'has_obstacles': len(obstacle_paths) > 0
             }
 
+            # Track total obstacles created in this episode
+            obstacle_counter = len(obstacle_paths)
+
             for step in range(steps_per_episode):
                 # Get action from scripted policy FIRST
                 left_speed, right_speed = get_scripted_action(instruction)
@@ -516,10 +519,63 @@ def collect_synthetic_data(
                     jetbot.apply_wheel_actions(wheel_velocities)
                     world.step(render=False)
 
+                # Get current robot pose for dynamic obstacle spawning
+                pos, orient = jetbot.get_world_pose()
+                # Extract yaw from quaternion (w, x, y, z)
+                qw, qx, qy, qz = orient[0], orient[1], orient[2], orient[3]
+                current_yaw = np.arctan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
+
                 # Debug: print robot position every few steps
                 if step % 10 == 0:
-                    pos, _ = jetbot.get_world_pose()
                     print(f"  Step {step}: robot at ({pos[0]:.3f}, {pos[1]:.3f}), action=({left_speed:.2f}, {right_speed:.2f})")
+
+                # Dynamically spawn new obstacles every 5 steps to keep scene interesting
+                if domain_randomization and step > 0 and step % 5 == 0:
+                    # Add 2-4 new obstacles in front of robot's current position
+                    num_new = np.random.randint(2, 5)
+                    for i in range(num_new):
+                        new_path = f"/World/Obstacle_{obstacle_counter}"
+                        obstacle_counter += 1
+
+                        # Position in front of robot (further out to give robot room)
+                        local_x = np.random.uniform(0.6, 2.5)
+                        local_y = np.random.uniform(-1.2, 1.2)
+
+                        # Transform to world coords
+                        cos_yaw = np.cos(current_yaw)
+                        sin_yaw = np.sin(current_yaw)
+                        x = pos[0] + local_x * cos_yaw - local_y * sin_yaw
+                        y = pos[1] + local_x * sin_yaw + local_y * cos_yaw
+
+                        # Create random obstacle
+                        from pxr import UsdGeom, Gf
+                        from omni.isaac.core.utils.prims import create_prim
+
+                        size = np.random.uniform(0.05, 0.15)
+                        color_name = np.random.choice(list(OBSTACLE_COLORS.keys()))
+                        color = OBSTACLE_COLORS[color_name]
+                        shape_type = np.random.choice(['Cube', 'Cylinder', 'Sphere'])
+
+                        if shape_type == 'Cube':
+                            prim = create_prim(new_path, "Cube")
+                            UsdGeom.Cube(prim).GetSizeAttr().Set(size * 2)
+                        elif shape_type == 'Cylinder':
+                            prim = create_prim(new_path, "Cylinder")
+                            cyl = UsdGeom.Cylinder(prim)
+                            cyl.GetRadiusAttr().Set(size)
+                            cyl.GetHeightAttr().Set(size * 2)
+                        else:
+                            prim = create_prim(new_path, "Sphere")
+                            UsdGeom.Sphere(prim).GetRadiusAttr().Set(size)
+
+                        xform = UsdGeom.Xformable(prim)
+                        xform.ClearXformOpOrder()
+                        xform.AddTranslateOp().Set(Gf.Vec3d(x, y, size))
+                        UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
+                        obstacle_paths.append(new_path)
+
+                    # Update scene info
+                    scene_info['num_obstacles'] = len(obstacle_paths)
 
                 # Now render and capture image (robot has moved)
                 world.step(render=True)
