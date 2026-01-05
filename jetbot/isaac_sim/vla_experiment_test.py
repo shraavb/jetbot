@@ -58,12 +58,17 @@ Usage:
 """
 
 import sys
+import os
 import time
 import argparse
 import numpy as np
 import zmq
 from PIL import Image
 import io
+
+# Suppress verbose Omniverse/Carb warnings
+os.environ.setdefault('CARB_LOG_LEVEL', 'error')
+os.environ.setdefault('OMNI_LOG_LEVEL', 'error')
 
 
 def main():
