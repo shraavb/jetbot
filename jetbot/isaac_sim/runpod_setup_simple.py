@@ -110,8 +110,9 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
 
     for i in range(num_obstacles):
         # Random position in robot's local frame (in front of robot)
-        local_x = np.random.uniform(0.3, 1.2)  # Forward distance
-        local_y = np.random.uniform(-0.6, 0.6)  # Lateral spread
+        # Keep clear zone in front (0.5m) so robot can move freely
+        local_x = np.random.uniform(0.5, 2.0)  # Forward distance (further out)
+        local_y = np.random.uniform(-1.0, 1.0)  # Wider lateral spread
 
         # Transform to world coordinates based on robot position and yaw
         cos_yaw = np.cos(robot_yaw)
@@ -464,9 +465,9 @@ def collect_synthetic_data(
 
             # Domain randomization for this episode
             if domain_randomization:
-                # Add random obstacles (always at least 5)
+                # Add random obstacles (2-8 range to avoid crowding)
                 # Position them in front of the robot based on its pose
-                actual_num_obstacles = np.random.randint(5, num_obstacles + 1)
+                actual_num_obstacles = np.random.randint(2, min(num_obstacles, 8) + 1)
                 obstacle_paths = create_random_obstacles(
                     stage,
                     actual_num_obstacles,
