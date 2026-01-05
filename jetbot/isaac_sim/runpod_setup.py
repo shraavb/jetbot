@@ -801,8 +801,8 @@ def main():
     parser.add_argument(
         '--obstacles',
         type=int,
-        default=3,
-        help='Max number of obstacles per scene (0-5)'
+        default=20,
+        help='Max number of obstacles per scene (5-20 will be randomly selected)'
     )
 
     args = parser.parse_args()
