@@ -619,19 +619,44 @@ def collect_synthetic_data(
                     obstacle_counter += 1
 
                     # Choose random direction: front, left, right, or behind
-                    direction = np.random.choice(['front', 'left', 'right', 'behind'])
+                    # Weight front more heavily since that's where collisions matter most
+                    direction = np.random.choice(['front', 'front', 'left', 'right', 'behind'])
+
+                    # Vary distance: sometimes VERY close (almost touching), sometimes just close
+                    closeness = np.random.choice(['touching', 'very_close', 'close'])
+
                     if direction == 'front':
-                        local_x = np.random.uniform(0.15, 0.3)  # Very close in front
-                        local_y = np.random.uniform(-0.1, 0.1)
+                        if closeness == 'touching':
+                            local_x = np.random.uniform(0.08, 0.12)  # Almost touching!
+                        elif closeness == 'very_close':
+                            local_x = np.random.uniform(0.12, 0.20)
+                        else:
+                            local_x = np.random.uniform(0.20, 0.35)
+                        local_y = np.random.uniform(-0.08, 0.08)
                     elif direction == 'left':
-                        local_x = np.random.uniform(-0.1, 0.2)
-                        local_y = np.random.uniform(0.12, 0.25)  # Close to left side
+                        local_x = np.random.uniform(-0.05, 0.15)
+                        if closeness == 'touching':
+                            local_y = np.random.uniform(0.08, 0.12)  # Almost touching left side
+                        elif closeness == 'very_close':
+                            local_y = np.random.uniform(0.12, 0.18)
+                        else:
+                            local_y = np.random.uniform(0.18, 0.30)
                     elif direction == 'right':
-                        local_x = np.random.uniform(-0.1, 0.2)
-                        local_y = np.random.uniform(-0.25, -0.12)  # Close to right side
+                        local_x = np.random.uniform(-0.05, 0.15)
+                        if closeness == 'touching':
+                            local_y = np.random.uniform(-0.12, -0.08)  # Almost touching right side
+                        elif closeness == 'very_close':
+                            local_y = np.random.uniform(-0.18, -0.12)
+                        else:
+                            local_y = np.random.uniform(-0.30, -0.18)
                     else:  # behind
-                        local_x = np.random.uniform(-0.3, -0.15)  # Behind the robot
-                        local_y = np.random.uniform(-0.1, 0.1)
+                        if closeness == 'touching':
+                            local_x = np.random.uniform(-0.15, -0.10)
+                        elif closeness == 'very_close':
+                            local_x = np.random.uniform(-0.22, -0.15)
+                        else:
+                            local_x = np.random.uniform(-0.35, -0.22)
+                        local_y = np.random.uniform(-0.08, 0.08)
 
                     # Transform to world coords
                     cos_yaw = np.cos(current_yaw)
@@ -640,7 +665,7 @@ def collect_synthetic_data(
                     y = pos[1] + local_x * sin_yaw + local_y * cos_yaw
 
                     # Create close obstacle (smaller size for near-collision scenarios)
-                    size = np.random.uniform(0.04, 0.10)
+                    size = np.random.uniform(0.03, 0.10)
                     color_name = np.random.choice(list(OBSTACLE_COLORS.keys()))
                     color = OBSTACLE_COLORS[color_name]
                     shape_type = np.random.choice(['Cube', 'Cylinder', 'Sphere'])
