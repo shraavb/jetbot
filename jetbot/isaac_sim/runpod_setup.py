@@ -183,7 +183,7 @@ def spawn_nucleus_asset(stage, asset_path: str, prim_path: str, position: tuple,
     """
     try:
         from pxr import UsdGeom, Gf, Sdf
-        from omni.isaac.core.utils.prims import create_prim
+        from omni.isaac.core.utils.prims import create_prim, delete_prim
 
         # Create an Xform prim and add reference to the asset
         prim = create_prim(prim_path, "Xform")
@@ -200,6 +200,12 @@ def spawn_nucleus_asset(stage, asset_path: str, prim_path: str, position: tuple,
 
     except Exception as e:
         print(f"Warning: Could not spawn Nucleus asset {asset_path}: {e}")
+        # Clean up the partially created prim so fallback can use this path
+        try:
+            from omni.isaac.core.utils.prims import delete_prim
+            delete_prim(prim_path)
+        except:
+            pass  # If delete fails, the fallback will handle it
         return False
 
 
@@ -241,7 +247,15 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
     Returns list of prim paths for cleanup.
     """
     from pxr import UsdGeom, Gf, UsdShade, Sdf
-    from omni.isaac.core.utils.prims import create_prim
+    from omni.isaac.core.utils.prims import create_prim, delete_prim
+
+    def safe_create_prim(prim_path: str, prim_type: str):
+        """Create a prim, deleting any existing prim at the path first."""
+        # Check if prim exists and delete it
+        existing = stage.GetPrimAtPath(prim_path)
+        if existing and existing.IsValid():
+            delete_prim(prim_path)
+        return create_prim(prim_path, prim_type)
 
     obstacle_paths = []
 
@@ -434,7 +448,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
                 except Exception as e:
                     # Fall back to a simple shape if JetBot loading fails
                     size = np.random.uniform(0.05, 0.10)
-                    prim = create_prim(prim_path, "Cube")
+                    prim = safe_create_prim(prim_path, "Cube")
                     cube = UsdGeom.Cube(prim)
                     cube.GetSizeAttr().Set(size * 2)
                     z_offset = size
@@ -442,7 +456,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             else:
                 # No JetBot asset, use green cube as placeholder
                 size = np.random.uniform(0.08, 0.12)
-                prim = create_prim(prim_path, "Cube")
+                prim = safe_create_prim(prim_path, "Cube")
                 cube = UsdGeom.Cube(prim)
                 cube.GetSizeAttr().Set(size * 2)
                 z_offset = size
@@ -461,7 +475,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
                     obstacle_paths.append(prim_path)
                     continue
             # Fallback to tall cylinder (person-like)
-            prim = create_prim(prim_path, "Capsule")
+            prim = safe_create_prim(prim_path, "Capsule")
             capsule = UsdGeom.Capsule(prim)
             capsule.GetRadiusAttr().Set(0.05)
             capsule.GetHeightAttr().Set(0.3)
@@ -481,7 +495,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
                     continue
             # Fallback to box (furniture-like)
             size = np.random.uniform(0.08, 0.15)
-            prim = create_prim(prim_path, "Cube")
+            prim = safe_create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(size * 2)
             z_offset = size
@@ -498,7 +512,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
                     obstacle_paths.append(prim_path)
                     continue
             # Fallback to cone
-            prim = create_prim(prim_path, "Cone")
+            prim = safe_create_prim(prim_path, "Cone")
             cone = UsdGeom.Cone(prim)
             cone.GetRadiusAttr().Set(0.05)
             cone.GetHeightAttr().Set(0.2)
@@ -517,7 +531,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
                     continue
             # Fallback to cube
             size = np.random.uniform(0.08, 0.12)
-            prim = create_prim(prim_path, "Cube")
+            prim = safe_create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(size * 2)
             z_offset = size
