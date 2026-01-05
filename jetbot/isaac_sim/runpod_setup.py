@@ -369,10 +369,15 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             prim = create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(width)
-            # Scale to make it flat
+            # Clear existing xform ops and add scale to make it flat
             xform_temp = UsdGeom.Xformable(prim)
+            xform_temp.ClearXformOpOrder()
+            xform_temp.AddTranslateOp().Set(Gf.Vec3d(x, y, z + height / 2))
             xform_temp.AddScaleOp().Set(Gf.Vec3f(1.0, 1.0, height / width))
-            z_offset = height / 2
+            gprim = UsdGeom.Gprim(prim)
+            gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
+            obstacle_paths.append(prim_path)
+            continue  # Skip default position handling
 
         elif shape_type == 'TallBox':
             # Chair-like tall box
@@ -381,9 +386,15 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             prim = create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(width)
+            # Clear existing xform ops and add scale to make it tall
             xform_temp = UsdGeom.Xformable(prim)
+            xform_temp.ClearXformOpOrder()
+            xform_temp.AddTranslateOp().Set(Gf.Vec3d(x, y, z + height / 2))
             xform_temp.AddScaleOp().Set(Gf.Vec3f(1.0, 1.0, height / width))
-            z_offset = height / 2
+            gprim = UsdGeom.Gprim(prim)
+            gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
+            obstacle_paths.append(prim_path)
+            continue  # Skip default position handling
 
         elif shape_type == 'Capsule':
             # Pill/capsule shape
@@ -521,7 +532,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             z_offset = size
 
         # Set position (skip if already handled by Nucleus assets or OtherJetBot)
-        if shape_type not in ['OtherJetBot', 'NucleusPerson', 'NucleusProp', 'NucleusTraffic', 'NucleusRobot']:
+        if shape_type not in ['OtherJetBot', 'NucleusPerson', 'NucleusProp', 'NucleusTraffic', 'NucleusRobot', 'FlatBox', 'TallBox']:
             xform = UsdGeom.Xformable(prim)
             xform.ClearXformOpOrder()
             xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z + z_offset))
