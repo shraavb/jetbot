@@ -53,7 +53,8 @@ class SmolVLATrainer:
         output_dir: str = "./models/smolvla_jetbot",
         device: str = "auto",
         use_fp16: bool = True,
-        gradient_checkpointing: bool = True
+        gradient_checkpointing: bool = True,
+        resume_from: Optional[str] = None
     ):
         """
         Initialize trainer.
@@ -64,10 +65,12 @@ class SmolVLATrainer:
             device: Computation device
             use_fp16: Use mixed precision training
             gradient_checkpointing: Use gradient checkpointing
+            resume_from: Path to checkpoint directory to resume from
         """
         self.model_id = model_id
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.resume_from = resume_from
 
         # Determine device
         if device == "auto":
@@ -130,6 +133,16 @@ class SmolVLATrainer:
             intermediate_size=128,
             dropout=0.1
         ).to(self.device)
+
+        # Load checkpoint if resuming
+        if self.resume_from:
+            checkpoint_path = Path(self.resume_from) / "jetbot_action_head.pt"
+            if checkpoint_path.exists():
+                print(f"Loading checkpoint from {checkpoint_path}", flush=True)
+                self.action_head.load_state_dict(torch.load(checkpoint_path, map_location=self.device))
+                print("Checkpoint loaded successfully!", flush=True)
+            else:
+                print(f"Warning: Checkpoint not found at {checkpoint_path}", flush=True)
 
         # Mixed precision scaler
         if self.use_fp16:
@@ -412,6 +425,11 @@ def main():
         choices=['auto', 'cuda', 'cpu'],
         help='Device to train on'
     )
+    parser.add_argument(
+        '--resume',
+        default=None,
+        help='Path to checkpoint directory to resume training from (e.g., models/smolvla_jetbot/best)'
+    )
     args = parser.parse_args()
 
     # Create trainer
@@ -419,7 +437,8 @@ def main():
         model_id=args.model,
         output_dir=args.output_dir,
         device=args.device,
-        use_fp16=not args.no_fp16
+        use_fp16=not args.no_fp16,
+        resume_from=args.resume
     )
 
     # Setup model
