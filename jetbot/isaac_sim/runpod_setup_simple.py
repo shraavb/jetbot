@@ -500,7 +500,22 @@ def collect_synthetic_data(
             }
 
             for step in range(steps_per_episode):
-                # Get camera image
+                # Get action from scripted policy FIRST
+                left_speed, right_speed = get_scripted_action(instruction)
+
+                # Apply action BEFORE capturing image
+                # This way the image shows the robot's state while executing the action
+                linear = (left_speed + right_speed) / 2.0 * 0.3
+                angular = (right_speed - left_speed) / 0.1 * 0.3
+                wheel_velocities = controller.forward([linear, angular])
+                jetbot.apply_wheel_actions(wheel_velocities)
+
+                # Step physics multiple times to let robot actually move
+                # This is critical - wheel actions need time to take effect
+                for _ in range(5):
+                    world.step(render=False)
+
+                # Now render and capture image (robot has moved)
                 world.step(render=True)
                 rgba = camera.get_rgba()
 
@@ -509,9 +524,6 @@ def collect_synthetic_data(
                     continue
 
                 rgb = rgba[:, :, :3]
-
-                # Get action from scripted policy
-                left_speed, right_speed = get_scripted_action(instruction)
 
                 # Save sample
                 sample_id = str(uuid.uuid4())
@@ -536,12 +548,6 @@ def collect_synthetic_data(
                 }
                 with open(save_path / f"{sample_id}.json", 'w') as f:
                     json.dump(metadata, f, indent=2)
-
-                # Apply action
-                linear = (left_speed + right_speed) / 2.0 * 0.3
-                angular = (right_speed - left_speed) / 0.1 * 0.3
-                wheel_velocities = controller.forward([linear, angular])
-                jetbot.apply_wheel_actions(wheel_velocities)
 
                 total_samples += 1
 
