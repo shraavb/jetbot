@@ -24,28 +24,31 @@ from typing import List, Tuple, Optional
 
 # Default navigation instructions for data collection
 DEFAULT_INSTRUCTIONS = [
+    # Forward movements (25%)
     "go forward",
     "move forward",
     "drive straight ahead",
+    # Left movements (20%)
     "turn left",
-    "turn right",
     "rotate left",
+    "go left",
+    "steer left",
+    # Right movements (20%)
+    "turn right",
     "rotate right",
+    "go right",
+    "steer right",
+    # Backward movements (15%)
     "go backward",
     "move back",
+    "reverse",
+    # Stop/halt (5%)
     "stop",
-    "halt",
+    # Avoidance/navigation (15%)
     "avoid the obstacle",
     "go around the obstacle",
-    "approach the red cube",
-    "approach the blue cube",
-    "approach the green cube",
-    "move toward the target",
-    "navigate to the goal",
-    "go to the red object",
-    "go to the blue object",
     "turn around",
-    "make a u-turn"
+    "make a u-turn",
 ]
 
 # Colors for domain randomization (RGB normalized 0-1)
@@ -604,6 +607,61 @@ def collect_synthetic_data(
                         obstacle_paths.append(new_path)
 
                     # Update scene info
+                    scene_info['num_obstacles'] = len(obstacle_paths)
+
+                # Spawn CLOSE obstacles every 4-5 steps for collision training data
+                # These appear very close to the robot (front, left, right, or behind)
+                if domain_randomization and step > 0 and step % np.random.randint(4, 6) == 0:
+                    from pxr import UsdGeom, Gf
+                    from omni.isaac.core.utils.prims import create_prim
+
+                    new_path = f"/World/Obstacle_{obstacle_counter}"
+                    obstacle_counter += 1
+
+                    # Choose random direction: front, left, right, or behind
+                    direction = np.random.choice(['front', 'left', 'right', 'behind'])
+                    if direction == 'front':
+                        local_x = np.random.uniform(0.15, 0.3)  # Very close in front
+                        local_y = np.random.uniform(-0.1, 0.1)
+                    elif direction == 'left':
+                        local_x = np.random.uniform(-0.1, 0.2)
+                        local_y = np.random.uniform(0.12, 0.25)  # Close to left side
+                    elif direction == 'right':
+                        local_x = np.random.uniform(-0.1, 0.2)
+                        local_y = np.random.uniform(-0.25, -0.12)  # Close to right side
+                    else:  # behind
+                        local_x = np.random.uniform(-0.3, -0.15)  # Behind the robot
+                        local_y = np.random.uniform(-0.1, 0.1)
+
+                    # Transform to world coords
+                    cos_yaw = np.cos(current_yaw)
+                    sin_yaw = np.sin(current_yaw)
+                    x = pos[0] + local_x * cos_yaw - local_y * sin_yaw
+                    y = pos[1] + local_x * sin_yaw + local_y * cos_yaw
+
+                    # Create close obstacle (smaller size for near-collision scenarios)
+                    size = np.random.uniform(0.04, 0.10)
+                    color_name = np.random.choice(list(OBSTACLE_COLORS.keys()))
+                    color = OBSTACLE_COLORS[color_name]
+                    shape_type = np.random.choice(['Cube', 'Cylinder', 'Sphere'])
+
+                    if shape_type == 'Cube':
+                        prim = create_prim(new_path, "Cube")
+                        UsdGeom.Cube(prim).GetSizeAttr().Set(size * 2)
+                    elif shape_type == 'Cylinder':
+                        prim = create_prim(new_path, "Cylinder")
+                        cyl = UsdGeom.Cylinder(prim)
+                        cyl.GetRadiusAttr().Set(size)
+                        cyl.GetHeightAttr().Set(size * 2)
+                    else:
+                        prim = create_prim(new_path, "Sphere")
+                        UsdGeom.Sphere(prim).GetRadiusAttr().Set(size)
+
+                    xform = UsdGeom.Xformable(prim)
+                    xform.ClearXformOpOrder()
+                    xform.AddTranslateOp().Set(Gf.Vec3d(x, y, size))
+                    UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
+                    obstacle_paths.append(new_path)
                     scene_info['num_obstacles'] = len(obstacle_paths)
 
                 # Now render and capture image (robot has moved)
