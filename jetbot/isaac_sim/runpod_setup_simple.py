@@ -529,8 +529,8 @@ def collect_synthetic_data(
                 if step % 10 == 0:
                     print(f"  Step {step}: robot at ({pos[0]:.3f}, {pos[1]:.3f}), action=({left_speed:.2f}, {right_speed:.2f})")
 
-                # Dynamically spawn new obstacles every 5 steps to keep scene interesting
-                if domain_randomization and step > 0 and step % 5 == 0:
+                # Dynamically spawn new obstacles every 3 steps to keep scene interesting
+                if domain_randomization and step > 0 and step % 3 == 0:
                     # Add 2-4 new obstacles in front of robot's current position
                     num_new = np.random.randint(2, 5)
                     for i in range(num_new):

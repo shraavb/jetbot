@@ -262,7 +262,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
         ('TallBox', 6),         # Chair-like tall object
         ('Capsule', 5),         # Rounded cylinder (pill shape)
         ('Pyramid', 4),         # Pyramid shape (using cone)
-        ('OtherJetBot', 7),     # Another JetBot robot
+        ('OtherJetBot', 20),    # Another JetBot robot (high weight to ensure at least 2)
     ]
 
     # Add Nucleus asset types if available
@@ -291,6 +291,9 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
     total_weight = sum(weights)
     weights = [w / total_weight for w in weights]
 
+    # Guarantee at least 2 JetBots by forcing first 2 obstacles to be JetBots if asset exists
+    guaranteed_jetbots = 2 if jetbot_asset_path and Path(jetbot_asset_path).exists() else 0
+
     for i in range(num_obstacles):
         # Random position in robot's local frame (in front of robot)
         # Keep clear zone in front (0.5m) so robot can move freely
@@ -308,8 +311,11 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
         color_name = np.random.choice(list(OBSTACLE_COLORS.keys()))
         color = OBSTACLE_COLORS[color_name]
 
-        # Random shape with weighted selection
-        shape_type = np.random.choice(shapes, p=weights)
+        # Force first 2 obstacles to be JetBots, then random weighted selection
+        if i < guaranteed_jetbots:
+            shape_type = 'OtherJetBot'
+        else:
+            shape_type = np.random.choice(shapes, p=weights)
 
         prim_path = f"/World/Obstacle_{i}"
 
@@ -907,8 +913,8 @@ def collect_synthetic_data(
                 if step % 10 == 0:
                     print(f"  Step {step}: robot at ({pos[0]:.3f}, {pos[1]:.3f}), action=({left_speed:.2f}, {right_speed:.2f})")
 
-                # Dynamically spawn new obstacles every 5 steps to keep scene interesting
-                if domain_randomization and step > 0 and step % 5 == 0:
+                # Dynamically spawn new obstacles every 3 steps to keep scene interesting
+                if domain_randomization and step > 0 and step % 3 == 0:
                     # Add 2-4 new obstacles in front of robot's current position
                     num_new = np.random.randint(2, 5)
                     for i in range(num_new):
