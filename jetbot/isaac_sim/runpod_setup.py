@@ -185,15 +185,21 @@ def spawn_nucleus_asset(stage, asset_path: str, prim_path: str, position: tuple,
         from pxr import UsdGeom, Gf, Sdf
         from omni.isaac.core.utils.prims import create_prim, delete_prim
 
+        # Delete existing prim if it exists to avoid xformOp conflicts
+        existing = stage.GetPrimAtPath(prim_path)
+        if existing and existing.IsValid():
+            delete_prim(prim_path)
+
         # Create a parent Xform for our transform, then add child with reference
         # This avoids conflicts with xform ops in the referenced USD file
         parent_prim = create_prim(prim_path, "Xform")
 
-        # Set transform on parent (no conflicts since it's our own prim)
+        # Set transform on parent - clear any default ops first
         xform = UsdGeom.Xformable(parent_prim)
+        xform.ClearXformOpOrder()
         xform.AddTranslateOp().Set(Gf.Vec3d(*position))
         xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, rotation_deg))
-        xform.AddScaleOp().Set(Gf.Vec3d(scale, scale, scale))  # Use Vec3d to match typical USD precision
+        xform.AddScaleOp().Set(Gf.Vec3d(scale, scale, scale))
 
         # Add reference as a child prim to avoid xform op conflicts
         child_path = prim_path + "/asset"
@@ -384,12 +390,11 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             # Low flat box - like a package on ground
             width = np.random.uniform(0.08, 0.15)
             height = np.random.uniform(0.03, 0.06)
-            prim = create_prim(prim_path, "Cube")
+            prim = safe_create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(width)
             # Set transform - use Vec3d for scale to match USD default precision
             xform_temp = UsdGeom.Xformable(prim)
-            xform_temp.ClearXformOpOrder()
             xform_temp.AddTranslateOp().Set(Gf.Vec3d(x, y, z + height / 2))
             xform_temp.AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, height / width))
             gprim = UsdGeom.Gprim(prim)
@@ -401,12 +406,11 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             # Chair-like tall box
             width = np.random.uniform(0.06, 0.10)
             height = np.random.uniform(0.15, 0.25)
-            prim = create_prim(prim_path, "Cube")
+            prim = safe_create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(width)
             # Set transform - use Vec3d for scale to match USD default precision
             xform_temp = UsdGeom.Xformable(prim)
-            xform_temp.ClearXformOpOrder()
             xform_temp.AddTranslateOp().Set(Gf.Vec3d(x, y, z + height / 2))
             xform_temp.AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, height / width))
             gprim = UsdGeom.Gprim(prim)
