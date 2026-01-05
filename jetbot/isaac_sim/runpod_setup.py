@@ -91,15 +91,17 @@ def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
     return str(jetbot_path)
 
 
-def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0, 0), robot_yaw: float = 0) -> List[str]:
+def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0, 0), robot_yaw: float = 0, jetbot_asset_path: str = None) -> List[str]:
     """
     Create random colored obstacles in the scene, positioned in front of the robot.
+    Includes diverse shapes: basic geometry, cones, compound objects, and other JetBots.
 
     Args:
         stage: USD stage
         num_obstacles: Number of obstacles to create
         robot_pos: (x, y) position of robot in world coords
         robot_yaw: Robot's yaw angle in radians (0 = facing +X)
+        jetbot_asset_path: Path to JetBot USD for spawning other robots
 
     Returns list of prim paths for cleanup.
     """
@@ -108,10 +110,33 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
 
     obstacle_paths = []
 
+    # Extended shape types with weights (more common shapes have higher weight)
+    shape_types = [
+        ('Cube', 15),           # Basic cube
+        ('Cylinder', 15),       # Basic cylinder
+        ('Sphere', 15),         # Basic sphere
+        ('Cone', 12),           # Traffic cone shape
+        ('TallCylinder', 8),    # Pole/barrier
+        ('FlatBox', 8),         # Low obstacle like a box on ground
+        ('TallBox', 8),         # Chair-like tall object
+        ('Capsule', 6),         # Rounded cylinder (pill shape)
+        ('Pyramid', 5),         # Pyramid shape (using cone)
+        ('OtherJetBot', 8),     # Another JetBot robot
+    ]
+
+    # Create weighted choice list
+    shapes = []
+    weights = []
+    for shape, weight in shape_types:
+        shapes.append(shape)
+        weights.append(weight)
+    total_weight = sum(weights)
+    weights = [w / total_weight for w in weights]
+
     for i in range(num_obstacles):
         # Random position in robot's local frame (in front of robot)
-        local_x = np.random.uniform(0.3, 1.2)  # Forward distance
-        local_y = np.random.uniform(-0.6, 0.6)  # Lateral spread
+        local_x = np.random.uniform(0.3, 1.5)  # Forward distance (extended range)
+        local_y = np.random.uniform(-0.8, 0.8)  # Lateral spread (wider)
 
         # Transform to world coordinates based on robot position and yaw
         cos_yaw = np.cos(robot_yaw)
@@ -120,41 +145,156 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
         y = robot_pos[1] + local_x * sin_yaw + local_y * cos_yaw
         z = 0.0  # At ground level
 
-        # Random size
-        size = np.random.uniform(0.05, 0.15)
-
         # Random color
         color_name = np.random.choice(list(OBSTACLE_COLORS.keys()))
         color = OBSTACLE_COLORS[color_name]
 
-        # Random shape (cube or cylinder)
-        shape_type = np.random.choice(['Cube', 'Cylinder', 'Sphere'])
+        # Random shape with weighted selection
+        shape_type = np.random.choice(shapes, p=weights)
 
         prim_path = f"/World/Obstacle_{i}"
 
-        # Create the shape
+        # Create the shape based on type
         if shape_type == 'Cube':
+            size = np.random.uniform(0.05, 0.12)
             prim = create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(size * 2)
+            z_offset = size
+
         elif shape_type == 'Cylinder':
+            size = np.random.uniform(0.04, 0.10)
             prim = create_prim(prim_path, "Cylinder")
             cylinder = UsdGeom.Cylinder(prim)
             cylinder.GetRadiusAttr().Set(size)
             cylinder.GetHeightAttr().Set(size * 2)
-        else:  # Sphere
+            z_offset = size
+
+        elif shape_type == 'Sphere':
+            size = np.random.uniform(0.04, 0.12)
             prim = create_prim(prim_path, "Sphere")
             sphere = UsdGeom.Sphere(prim)
             sphere.GetRadiusAttr().Set(size)
+            z_offset = size
 
-        # Set position
-        xform = UsdGeom.Xformable(prim)
-        xform.ClearXformOpOrder()
-        xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z + size))
+        elif shape_type == 'Cone':
+            # Traffic cone - tall and narrow
+            radius = np.random.uniform(0.03, 0.06)
+            height = np.random.uniform(0.15, 0.25)
+            prim = create_prim(prim_path, "Cone")
+            cone = UsdGeom.Cone(prim)
+            cone.GetRadiusAttr().Set(radius)
+            cone.GetHeightAttr().Set(height)
+            # Cone colors: orange, red, yellow for traffic cones
+            color = np.random.choice([
+                OBSTACLE_COLORS['orange'],
+                OBSTACLE_COLORS['red'],
+                OBSTACLE_COLORS['yellow']
+            ])
+            z_offset = height / 2
 
-        # Set color via displayColor
-        gprim = UsdGeom.Gprim(prim)
-        gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
+        elif shape_type == 'TallCylinder':
+            # Pole or barrier - thin and tall
+            radius = np.random.uniform(0.02, 0.04)
+            height = np.random.uniform(0.2, 0.35)
+            prim = create_prim(prim_path, "Cylinder")
+            cylinder = UsdGeom.Cylinder(prim)
+            cylinder.GetRadiusAttr().Set(radius)
+            cylinder.GetHeightAttr().Set(height)
+            z_offset = height / 2
+
+        elif shape_type == 'FlatBox':
+            # Low flat box - like a package on ground
+            width = np.random.uniform(0.08, 0.15)
+            height = np.random.uniform(0.03, 0.06)
+            prim = create_prim(prim_path, "Cube")
+            cube = UsdGeom.Cube(prim)
+            cube.GetSizeAttr().Set(width)
+            # Scale to make it flat
+            xform_temp = UsdGeom.Xformable(prim)
+            xform_temp.AddScaleOp().Set(Gf.Vec3f(1.0, 1.0, height / width))
+            z_offset = height / 2
+
+        elif shape_type == 'TallBox':
+            # Chair-like tall box
+            width = np.random.uniform(0.06, 0.10)
+            height = np.random.uniform(0.15, 0.25)
+            prim = create_prim(prim_path, "Cube")
+            cube = UsdGeom.Cube(prim)
+            cube.GetSizeAttr().Set(width)
+            xform_temp = UsdGeom.Xformable(prim)
+            xform_temp.AddScaleOp().Set(Gf.Vec3f(1.0, 1.0, height / width))
+            z_offset = height / 2
+
+        elif shape_type == 'Capsule':
+            # Pill/capsule shape
+            radius = np.random.uniform(0.03, 0.06)
+            height = np.random.uniform(0.08, 0.15)
+            prim = create_prim(prim_path, "Capsule")
+            capsule = UsdGeom.Capsule(prim)
+            capsule.GetRadiusAttr().Set(radius)
+            capsule.GetHeightAttr().Set(height)
+            z_offset = radius + height / 2
+
+        elif shape_type == 'Pyramid':
+            # Pyramid using cone with wider base
+            radius = np.random.uniform(0.06, 0.10)
+            height = np.random.uniform(0.08, 0.15)
+            prim = create_prim(prim_path, "Cone")
+            cone = UsdGeom.Cone(prim)
+            cone.GetRadiusAttr().Set(radius)
+            cone.GetHeightAttr().Set(height)
+            z_offset = height / 2
+
+        elif shape_type == 'OtherJetBot':
+            # Spawn another JetBot as obstacle
+            if jetbot_asset_path and Path(jetbot_asset_path).exists():
+                try:
+                    prim = create_prim(prim_path, "Xform")
+                    prim.GetReferences().AddReference(jetbot_asset_path)
+                    z_offset = 0.0
+                    # Random rotation for the other JetBot
+                    random_yaw = np.random.uniform(-np.pi, np.pi)
+                    xform = UsdGeom.Xformable(prim)
+                    xform.ClearXformOpOrder()
+                    xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z))
+                    xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, np.degrees(random_yaw)))
+                    obstacle_paths.append(prim_path)
+                    continue  # Skip the rest of the loop for JetBot
+                except Exception as e:
+                    # Fall back to a simple shape if JetBot loading fails
+                    size = np.random.uniform(0.05, 0.10)
+                    prim = create_prim(prim_path, "Cube")
+                    cube = UsdGeom.Cube(prim)
+                    cube.GetSizeAttr().Set(size * 2)
+                    z_offset = size
+                    color = OBSTACLE_COLORS['green']  # JetBot is green
+            else:
+                # No JetBot asset, use green cube as placeholder
+                size = np.random.uniform(0.08, 0.12)
+                prim = create_prim(prim_path, "Cube")
+                cube = UsdGeom.Cube(prim)
+                cube.GetSizeAttr().Set(size * 2)
+                z_offset = size
+                color = OBSTACLE_COLORS['green']
+
+        else:
+            # Default to cube
+            size = np.random.uniform(0.05, 0.12)
+            prim = create_prim(prim_path, "Cube")
+            cube = UsdGeom.Cube(prim)
+            cube.GetSizeAttr().Set(size * 2)
+            z_offset = size
+
+        # Set position (skip if already handled, e.g., OtherJetBot)
+        if shape_type != 'OtherJetBot':
+            xform = UsdGeom.Xformable(prim)
+            xform.ClearXformOpOrder()
+            xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z + z_offset))
+
+            # Set color via displayColor
+            gprim = UsdGeom.Gprim(prim)
+            gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
 
         obstacle_paths.append(prim_path)
 
@@ -471,7 +611,8 @@ def collect_synthetic_data(
                     stage,
                     actual_num_obstacles,
                     robot_pos=(rand_x, rand_y),
-                    robot_yaw=rand_yaw
+                    robot_yaw=rand_yaw,
+                    jetbot_asset_path=jetbot_path
                 )
 
                 # Randomize lighting
