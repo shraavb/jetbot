@@ -1,7 +1,48 @@
 # Isaac Sim Integration for JetBot VLA
 
 This module provides NVIDIA Isaac Sim integration for VLA training and testing.
-The `runpod_setup.py` script is **self-contained** and doesn't require JetBot hardware dependencies.
+
+## Data Collection Scripts
+
+Two versions are available:
+
+| Script | Stability | Obstacles | Recommended For |
+|--------|-----------|-----------|-----------------|
+| `runpod_setup_simple.py` | **High** | 4 primitive types | Data collection |
+| `runpod_setup.py` | Medium | 9+ types + Nucleus | Experimentation |
+
+### `runpod_setup_simple.py` (RECOMMENDED)
+
+**Use this for reliable data collection.** Uses only basic USD primitives.
+
+**Obstacles:** Cube, Sphere, Cylinder, Cone
+
+```bash
+/isaac-sim/python.sh /workspace/jetbot/jetbot/isaac_sim/runpod_setup_simple.py \
+  --collect-data --episodes 200 --steps 50 --output /workspace/dataset_vla
+```
+
+### `runpod_setup.py` (Full Version)
+
+Extended version with more obstacle variety. May have USD xformOp issues.
+
+**Obstacles:**
+- Primitives: Cube, Sphere, Cylinder, Cone, Capsule
+- Complex: TallCylinder, FlatBox, TallBox, Pyramid
+- References: OtherJetBot (JetBot USD asset)
+- Nucleus (optional): People, Props, Traffic items, Robots
+
+```bash
+# Without Nucleus assets (more stable)
+/isaac-sim/python.sh /workspace/jetbot/jetbot/isaac_sim/runpod_setup.py \
+  --collect-data --episodes 200 --steps 50 --output /workspace/dataset_vla
+
+# With Nucleus assets (experimental - may cause errors)
+/isaac-sim/python.sh /workspace/jetbot/jetbot/isaac_sim/runpod_setup.py \
+  --collect-data --episodes 200 --output /workspace/dataset_vla --use-nucleus-assets
+```
+
+---
 
 ## Quick Start on RunPod
 
