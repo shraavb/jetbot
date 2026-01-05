@@ -841,9 +841,9 @@ def collect_synthetic_data(
 
             # Domain randomization for this episode
             if domain_randomization:
-                # Add random obstacles (2-8 range to avoid crowding)
+                # Add random obstacles (7-15 range for good variety)
                 # Position them in front of the robot based on its pose
-                actual_num_obstacles = np.random.randint(2, min(num_obstacles, 8) + 1)
+                actual_num_obstacles = np.random.randint(7, min(num_obstacles, 15) + 1)
                 obstacle_paths = create_random_obstacles(
                     stage,
                     actual_num_obstacles,
