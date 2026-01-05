@@ -157,8 +157,9 @@ def create_simple_obstacles(stage, num_obstacles: int, robot_pos: tuple = (0, 0)
             cone.GetHeightAttr().Set(height)
             z_offset = height / 2
 
-        # Set position - simple translate only
+        # Set position - clear existing xform ops first, then add translate
         xform = UsdGeom.Xformable(prim)
+        xform.ClearXformOpOrder()
         xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z_offset))
 
         # Set color
