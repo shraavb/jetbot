@@ -274,8 +274,38 @@ class SmolVLATrainer:
         # Training loop
         best_val_loss = float('inf')
         global_step = 0
+        start_epoch = 0
 
-        for epoch in range(config['num_epochs']):
+        # Load full training state if resuming
+        if self.resume_from:
+            training_state = self.load_training_state(Path(self.resume_from))
+            if training_state:
+                # Restore optimizer state
+                if 'optimizer_state_dict' in training_state:
+                    optimizer.load_state_dict(training_state['optimizer_state_dict'])
+                    print("Restored optimizer state", flush=True)
+
+                # Restore scheduler state
+                if 'scheduler_state_dict' in training_state:
+                    scheduler.load_state_dict(training_state['scheduler_state_dict'])
+                    print("Restored scheduler state", flush=True)
+
+                # Restore training progress
+                if training_state.get('epoch') is not None:
+                    start_epoch = training_state['epoch'] + 1  # Start from next epoch
+                    print(f"Resuming from epoch {start_epoch + 1}", flush=True)
+
+                if training_state.get('global_step') is not None:
+                    global_step = training_state['global_step']
+                    print(f"Resuming from global step {global_step}", flush=True)
+
+                if training_state.get('best_val_loss') is not None:
+                    best_val_loss = training_state['best_val_loss']
+                    print(f"Best val loss so far: {best_val_loss:.4f}", flush=True)
+            else:
+                print("No full training state found, starting fresh with loaded weights", flush=True)
+
+        for epoch in range(start_epoch, config['num_epochs']):
             self.action_head.train()
             epoch_loss = 0.0
 
@@ -326,15 +356,18 @@ class SmolVLATrainer:
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
-                    self.save("best")
+                    self.save("best", epoch=epoch, optimizer=optimizer, scheduler=scheduler,
+                              best_val_loss=best_val_loss, global_step=global_step)
                     print(f"Saved best model (val_loss={val_loss:.4f})", flush=True)
 
-            # Periodic checkpoint
+            # Periodic checkpoint (with full state for resumption)
             if (epoch + 1) % config['save_every_n_epochs'] == 0:
-                self.save(f"checkpoint_epoch_{epoch+1}")
+                self.save(f"checkpoint_epoch_{epoch+1}", epoch=epoch, optimizer=optimizer,
+                          scheduler=scheduler, best_val_loss=best_val_loss, global_step=global_step)
 
         # Save final model
-        self.save("final")
+        self.save("final", epoch=epoch, optimizer=optimizer, scheduler=scheduler,
+                  best_val_loss=best_val_loss, global_step=global_step)
         print(f"Training complete. Model saved to {self.output_dir}", flush=True)
 
     def validate(self, val_loader: DataLoader) -> float:
@@ -355,25 +388,51 @@ class SmolVLATrainer:
 
         return total_loss / len(val_loader)
 
-    def save(self, name: str):
-        """Save action head checkpoint."""
+    def save(self, name: str, epoch: int = None, optimizer=None, scheduler=None,
+             best_val_loss: float = None, global_step: int = None):
+        """Save action head checkpoint with full training state."""
         save_path = self.output_dir / name
         save_path.mkdir(parents=True, exist_ok=True)
 
-        # Save action head
+        # Save action head weights (for backwards compatibility)
         torch.save(
             self.action_head.state_dict(),
             save_path / "jetbot_action_head.pt"
         )
 
+        # Save full training state for resumption
+        training_state = {
+            'action_head_state_dict': self.action_head.state_dict(),
+            'epoch': epoch,
+            'global_step': global_step,
+            'best_val_loss': best_val_loss,
+        }
+        if optimizer is not None:
+            training_state['optimizer_state_dict'] = optimizer.state_dict()
+        if scheduler is not None:
+            training_state['scheduler_state_dict'] = scheduler.state_dict()
+
+        torch.save(training_state, save_path / "training_state.pt")
+
         # Save config
         config = {
             'model_id': self.model_id,
             'hidden_size': self.action_head.hidden_size,
-            'action_dim': self.action_head.action_dim
+            'action_dim': self.action_head.action_dim,
+            'epoch': epoch,
+            'global_step': global_step,
+            'best_val_loss': best_val_loss
         }
         with open(save_path / "config.yaml", 'w') as f:
             yaml.dump(config, f)
+
+    def load_training_state(self, checkpoint_path: Path):
+        """Load full training state from checkpoint."""
+        state_file = checkpoint_path / "training_state.pt"
+        if state_file.exists():
+            print(f"Loading full training state from {state_file}", flush=True)
+            return torch.load(state_file, map_location=self.device, weights_only=False)
+        return None
 
 
 def main():
