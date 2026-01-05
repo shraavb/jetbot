@@ -17,6 +17,7 @@ import json
 import time
 import uuid
 import argparse
+import random
 import numpy as np
 from pathlib import Path
 from typing import List, Tuple, Optional
@@ -344,7 +345,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             cone.GetRadiusAttr().Set(radius)
             cone.GetHeightAttr().Set(height)
             # Cone colors: orange, red, yellow for traffic cones
-            color = np.random.choice([
+            color = random.choice([
                 OBSTACLE_COLORS['orange'],
                 OBSTACLE_COLORS['red'],
                 OBSTACLE_COLORS['yellow']
