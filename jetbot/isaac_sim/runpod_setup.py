@@ -740,8 +740,8 @@ def collect_synthetic_data(
     print(f"  Episodes: {num_episodes}")
     print(f"  Steps per episode: {steps_per_episode}")
     print(f"  Domain randomization: {domain_randomization}")
-    print(f"  Obstacles per scene: {num_obstacles}")
-    print(f"  Use Nucleus assets: {use_nucleus_assets}")
+    print(f"  Obstacles per scene: 5-{num_obstacles}")
+    print(f"  Nucleus assets: {'ENABLED (experimental)' if use_nucleus_assets else 'disabled (use --use-nucleus-assets to enable)'}")
     print(f"  Output: {output_dir}")
 
     if instructions is None:
@@ -1240,9 +1240,9 @@ def main():
         help='Max number of obstacles per scene (5-20 will be randomly selected)'
     )
     parser.add_argument(
-        '--no-nucleus-assets',
+        '--use-nucleus-assets',
         action='store_true',
-        help='Disable Nucleus assets (people, furniture, warehouse props)'
+        help='Enable Nucleus assets (people, furniture, warehouse props) - EXPERIMENTAL, may cause USD xformOp conflicts'
     )
 
     args = parser.parse_args()
@@ -1255,13 +1255,16 @@ def main():
         sys.exit(0 if success else 1)
 
     if args.collect_data:
+        # Nucleus assets are disabled by default due to USD xformOp conflicts
+        # Use --use-nucleus-assets to enable them (experimental)
+        use_nucleus = args.use_nucleus_assets  # Only enabled if explicitly requested
         collect_synthetic_data(
             output_dir=args.output,
             num_episodes=args.episodes,
             steps_per_episode=args.steps,
             domain_randomization=not args.no_domain_randomization,
             num_obstacles=args.obstacles,
-            use_nucleus_assets=not args.no_nucleus_assets
+            use_nucleus_assets=use_nucleus
         )
 
     if args.test_vla:
