@@ -69,6 +69,138 @@ GROUND_COLORS = [
     (0.6, 0.55, 0.5),  # Beige
 ]
 
+# Isaac Sim Nucleus assets - paths relative to assets root
+# These will be tried if Nucleus is available; fallback to primitives if not
+NUCLEUS_ASSETS = {
+    # Robots (relative paths from Isaac assets root)
+    'robots': [
+        '/Isaac/Robots/Jetbot/jetbot.usd',
+        '/Isaac/Robots/Carter/carter_v1.usd',
+        '/Isaac/Robots/Transporter/transporter.usd',
+        '/Isaac/Robots/Kaya/kaya.usd',
+    ],
+    # People/Characters
+    'people': [
+        '/Isaac/People/Characters/original_male_adult_police_04/male_adult_police_04.usd',
+        '/Isaac/People/Characters/original_male_adult_medical_01/male_adult_medical_01.usd',
+        '/Isaac/People/Characters/original_female_adult_police_02/female_adult_police_02.usd',
+        '/Isaac/People/Characters/original_male_adult_construction_03/male_adult_construction_03.usd',
+    ],
+    # Props and furniture (common warehouse/industrial items)
+    'props': [
+        '/Isaac/Props/Forklift/forklift.usd',
+        '/Isaac/Props/Mounts/SeattleLabTable/table_instanceable.usd',
+        '/Isaac/Environments/Simple_Warehouse/Props/SM_BarrelPlastic_A_01.usd',
+        '/Isaac/Environments/Simple_Warehouse/Props/SM_BarrelPlastic_A_02.usd',
+        '/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxA_01.usd',
+        '/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxB_01.usd',
+        '/Isaac/Environments/Simple_Warehouse/Props/SM_CardBoxC_01.usd',
+        '/Isaac/Environments/Simple_Warehouse/Props/SM_PushcartA_02.usd',
+        '/Isaac/Environments/Simple_Warehouse/Props/SM_RackShelf_01.usd',
+    ],
+    # Traffic/safety items
+    'traffic': [
+        '/Isaac/Environments/Simple_Warehouse/Props/SM_TrafficConeA_01.usd',
+        '/Isaac/Environments/Simple_Warehouse/Props/SM_SafetyBarrierA_01.usd',
+    ],
+}
+
+# Cache for Nucleus asset availability (checked once per session)
+_nucleus_assets_cache = {'checked': False, 'available': [], 'root_path': None}
+
+
+def check_nucleus_assets() -> dict:
+    """
+    Check which Nucleus assets are available.
+    Results are cached for the session.
+
+    Returns dict with:
+        - 'available': list of full asset paths that exist
+        - 'root_path': the assets root path
+    """
+    global _nucleus_assets_cache
+
+    if _nucleus_assets_cache['checked']:
+        return _nucleus_assets_cache
+
+    try:
+        from omni.isaac.core.utils.nucleus import get_assets_root_path
+        import omni.client
+
+        root_path = get_assets_root_path()
+        if root_path is None:
+            print("Warning: Nucleus assets root path not available")
+            _nucleus_assets_cache['checked'] = True
+            return _nucleus_assets_cache
+
+        _nucleus_assets_cache['root_path'] = root_path
+        available = []
+
+        # Check each asset category
+        for category, paths in NUCLEUS_ASSETS.items():
+            for rel_path in paths:
+                full_path = root_path + rel_path
+                # Check if asset exists
+                result, entry = omni.client.stat(full_path)
+                if result == omni.client.Result.OK:
+                    available.append({
+                        'category': category,
+                        'path': full_path,
+                        'rel_path': rel_path
+                    })
+
+        _nucleus_assets_cache['available'] = available
+        _nucleus_assets_cache['checked'] = True
+
+        print(f"Found {len(available)} Nucleus assets available:")
+        for cat in ['robots', 'people', 'props', 'traffic']:
+            count = len([a for a in available if a['category'] == cat])
+            if count > 0:
+                print(f"  - {cat}: {count} assets")
+
+    except Exception as e:
+        print(f"Warning: Could not check Nucleus assets: {e}")
+        _nucleus_assets_cache['checked'] = True
+
+    return _nucleus_assets_cache
+
+
+def spawn_nucleus_asset(stage, asset_path: str, prim_path: str, position: tuple, rotation_deg: float = 0, scale: float = 1.0) -> bool:
+    """
+    Spawn a Nucleus asset at the given position.
+
+    Args:
+        stage: USD stage
+        asset_path: Full path to the USD asset
+        prim_path: Path for the new prim
+        position: (x, y, z) world position
+        rotation_deg: Rotation around Z axis in degrees
+        scale: Scale factor (Nucleus assets are often in cm, need 0.01 for m)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        from pxr import UsdGeom, Gf, Sdf
+        from omni.isaac.core.utils.prims import create_prim
+
+        # Create an Xform prim and add reference to the asset
+        prim = create_prim(prim_path, "Xform")
+        prim.GetReferences().AddReference(asset_path)
+
+        # Set transform
+        xform = UsdGeom.Xformable(prim)
+        xform.ClearXformOpOrder()
+        xform.AddTranslateOp().Set(Gf.Vec3d(*position))
+        xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, rotation_deg))
+        xform.AddScaleOp().Set(Gf.Vec3f(scale, scale, scale))
+
+        return True
+
+    except Exception as e:
+        print(f"Warning: Could not spawn Nucleus asset {asset_path}: {e}")
+        return False
+
 
 def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
     """Download JetBot USD asset from NVIDIA."""
@@ -91,10 +223,11 @@ def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
     return str(jetbot_path)
 
 
-def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0, 0), robot_yaw: float = 0, jetbot_asset_path: str = None) -> List[str]:
+def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0, 0), robot_yaw: float = 0, jetbot_asset_path: str = None, use_nucleus_assets: bool = True) -> List[str]:
     """
     Create random colored obstacles in the scene, positioned in front of the robot.
-    Includes diverse shapes: basic geometry, cones, compound objects, and other JetBots.
+    Includes diverse shapes: basic geometry, cones, compound objects, other JetBots,
+    and Nucleus assets (people, furniture, warehouse props) if available.
 
     Args:
         stage: USD stage
@@ -102,6 +235,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
         robot_pos: (x, y) position of robot in world coords
         robot_yaw: Robot's yaw angle in radians (0 = facing +X)
         jetbot_asset_path: Path to JetBot USD for spawning other robots
+        use_nucleus_assets: Try to use Nucleus assets (people, furniture, etc.)
 
     Returns list of prim paths for cleanup.
     """
@@ -110,19 +244,43 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
 
     obstacle_paths = []
 
+    # Check for available Nucleus assets
+    nucleus_cache = None
+    nucleus_available = []
+    if use_nucleus_assets:
+        nucleus_cache = check_nucleus_assets()
+        nucleus_available = nucleus_cache.get('available', [])
+
     # Extended shape types with weights (more common shapes have higher weight)
     shape_types = [
-        ('Cube', 15),           # Basic cube
-        ('Cylinder', 15),       # Basic cylinder
-        ('Sphere', 15),         # Basic sphere
-        ('Cone', 12),           # Traffic cone shape
-        ('TallCylinder', 8),    # Pole/barrier
-        ('FlatBox', 8),         # Low obstacle like a box on ground
-        ('TallBox', 8),         # Chair-like tall object
-        ('Capsule', 6),         # Rounded cylinder (pill shape)
-        ('Pyramid', 5),         # Pyramid shape (using cone)
-        ('OtherJetBot', 8),     # Another JetBot robot
+        ('Cube', 12),           # Basic cube
+        ('Cylinder', 12),       # Basic cylinder
+        ('Sphere', 12),         # Basic sphere
+        ('Cone', 10),           # Traffic cone shape
+        ('TallCylinder', 6),    # Pole/barrier
+        ('FlatBox', 6),         # Low obstacle like a box on ground
+        ('TallBox', 6),         # Chair-like tall object
+        ('Capsule', 5),         # Rounded cylinder (pill shape)
+        ('Pyramid', 4),         # Pyramid shape (using cone)
+        ('OtherJetBot', 7),     # Another JetBot robot
     ]
+
+    # Add Nucleus asset types if available
+    if nucleus_available:
+        # Add categories based on what's available
+        people_assets = [a for a in nucleus_available if a['category'] == 'people']
+        props_assets = [a for a in nucleus_available if a['category'] == 'props']
+        traffic_assets = [a for a in nucleus_available if a['category'] == 'traffic']
+        robot_assets = [a for a in nucleus_available if a['category'] == 'robots']
+
+        if people_assets:
+            shape_types.append(('NucleusPerson', 8))  # People/humans
+        if props_assets:
+            shape_types.append(('NucleusProp', 10))   # Barrels, boxes, furniture
+        if traffic_assets:
+            shape_types.append(('NucleusTraffic', 6)) # Traffic cones, barriers
+        if robot_assets:
+            shape_types.append(('NucleusRobot', 5))   # Other robots
 
     # Create weighted choice list
     shapes = []
@@ -278,6 +436,81 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
                 z_offset = size
                 color = OBSTACLE_COLORS['green']
 
+        elif shape_type == 'NucleusPerson':
+            # Spawn a person/human from Nucleus assets
+            people_assets = [a for a in nucleus_available if a['category'] == 'people']
+            if people_assets:
+                asset = np.random.choice(people_assets)
+                random_yaw = np.random.uniform(-180, 180)
+                # People assets are in cm, scale to meters (0.01)
+                # Also make them smaller to fit scene (additional 0.5 scale)
+                if spawn_nucleus_asset(stage, asset['path'], prim_path,
+                                       (x, y, z), random_yaw, scale=0.005):
+                    obstacle_paths.append(prim_path)
+                    continue
+            # Fallback to tall cylinder (person-like)
+            prim = create_prim(prim_path, "Capsule")
+            capsule = UsdGeom.Capsule(prim)
+            capsule.GetRadiusAttr().Set(0.05)
+            capsule.GetHeightAttr().Set(0.3)
+            z_offset = 0.2
+            color = (0.8, 0.6, 0.5)  # Skin-ish color
+
+        elif shape_type == 'NucleusProp':
+            # Spawn furniture/warehouse props from Nucleus
+            props_assets = [a for a in nucleus_available if a['category'] == 'props']
+            if props_assets:
+                asset = np.random.choice(props_assets)
+                random_yaw = np.random.uniform(-180, 180)
+                # Props are in cm, scale to meters
+                if spawn_nucleus_asset(stage, asset['path'], prim_path,
+                                       (x, y, z), random_yaw, scale=0.01):
+                    obstacle_paths.append(prim_path)
+                    continue
+            # Fallback to box (furniture-like)
+            size = np.random.uniform(0.08, 0.15)
+            prim = create_prim(prim_path, "Cube")
+            cube = UsdGeom.Cube(prim)
+            cube.GetSizeAttr().Set(size * 2)
+            z_offset = size
+            color = (0.6, 0.4, 0.2)  # Brown/wood color
+
+        elif shape_type == 'NucleusTraffic':
+            # Spawn traffic cones/barriers from Nucleus
+            traffic_assets = [a for a in nucleus_available if a['category'] == 'traffic']
+            if traffic_assets:
+                asset = np.random.choice(traffic_assets)
+                random_yaw = np.random.uniform(-180, 180)
+                if spawn_nucleus_asset(stage, asset['path'], prim_path,
+                                       (x, y, z), random_yaw, scale=0.01):
+                    obstacle_paths.append(prim_path)
+                    continue
+            # Fallback to cone
+            prim = create_prim(prim_path, "Cone")
+            cone = UsdGeom.Cone(prim)
+            cone.GetRadiusAttr().Set(0.05)
+            cone.GetHeightAttr().Set(0.2)
+            z_offset = 0.1
+            color = OBSTACLE_COLORS['orange']
+
+        elif shape_type == 'NucleusRobot':
+            # Spawn other robots from Nucleus
+            robot_assets = [a for a in nucleus_available if a['category'] == 'robots']
+            if robot_assets:
+                asset = np.random.choice(robot_assets)
+                random_yaw = np.random.uniform(-180, 180)
+                if spawn_nucleus_asset(stage, asset['path'], prim_path,
+                                       (x, y, z), random_yaw, scale=1.0):
+                    obstacle_paths.append(prim_path)
+                    continue
+            # Fallback to cube
+            size = np.random.uniform(0.08, 0.12)
+            prim = create_prim(prim_path, "Cube")
+            cube = UsdGeom.Cube(prim)
+            cube.GetSizeAttr().Set(size * 2)
+            z_offset = size
+            color = OBSTACLE_COLORS['cyan']
+
         else:
             # Default to cube
             size = np.random.uniform(0.05, 0.12)
@@ -286,8 +519,8 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             cube.GetSizeAttr().Set(size * 2)
             z_offset = size
 
-        # Set position (skip if already handled, e.g., OtherJetBot)
-        if shape_type != 'OtherJetBot':
+        # Set position (skip if already handled by Nucleus assets or OtherJetBot)
+        if shape_type not in ['OtherJetBot', 'NucleusPerson', 'NucleusProp', 'NucleusTraffic', 'NucleusRobot']:
             xform = UsdGeom.Xformable(prim)
             xform.ClearXformOpOrder()
             xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z + z_offset))
@@ -454,7 +687,8 @@ def collect_synthetic_data(
     steps_per_episode: int = 50,
     instructions: List[str] = None,
     domain_randomization: bool = True,
-    num_obstacles: int = 20
+    num_obstacles: int = 20,
+    use_nucleus_assets: bool = True
 ):
     """
     Collect synthetic training data with domain randomization.
@@ -465,13 +699,15 @@ def collect_synthetic_data(
         steps_per_episode: Steps per episode
         instructions: List of instructions to use
         domain_randomization: Enable visual diversity (obstacles, lighting, colors)
-        num_obstacles: Number of obstacles per episode (0-5)
+        num_obstacles: Number of obstacles per episode (5-20)
+        use_nucleus_assets: Try to use Nucleus assets (people, furniture, etc.)
     """
     print(f"Collecting synthetic data with domain randomization...")
     print(f"  Episodes: {num_episodes}")
     print(f"  Steps per episode: {steps_per_episode}")
     print(f"  Domain randomization: {domain_randomization}")
     print(f"  Obstacles per scene: {num_obstacles}")
+    print(f"  Use Nucleus assets: {use_nucleus_assets}")
     print(f"  Output: {output_dir}")
 
     if instructions is None:
@@ -612,7 +848,8 @@ def collect_synthetic_data(
                     actual_num_obstacles,
                     robot_pos=(rand_x, rand_y),
                     robot_yaw=rand_yaw,
-                    jetbot_asset_path=jetbot_path
+                    jetbot_asset_path=jetbot_path,
+                    use_nucleus_assets=use_nucleus_assets
                 )
 
                 # Randomize lighting
@@ -968,6 +1205,11 @@ def main():
         default=20,
         help='Max number of obstacles per scene (5-20 will be randomly selected)'
     )
+    parser.add_argument(
+        '--no-nucleus-assets',
+        action='store_true',
+        help='Disable Nucleus assets (people, furniture, warehouse props)'
+    )
 
     args = parser.parse_args()
 
@@ -984,7 +1226,8 @@ def main():
             num_episodes=args.episodes,
             steps_per_episode=args.steps,
             domain_randomization=not args.no_domain_randomization,
-            num_obstacles=args.obstacles
+            num_obstacles=args.obstacles,
+            use_nucleus_assets=not args.no_nucleus_assets
         )
 
     if args.test_vla:
