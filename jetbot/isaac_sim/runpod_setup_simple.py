@@ -92,11 +92,13 @@ def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
     return str(jetbot_path)
 
 
-def create_simple_obstacles(stage, num_obstacles: int, robot_pos: tuple = (0, 0), robot_yaw: float = 0) -> List[str]:
+def create_simple_obstacles(stage, num_obstacles: int, robot_pos: tuple = (0, 0), robot_yaw: float = 0, episode: int = 0) -> List[str]:
     """
     Create simple primitive obstacles in the scene.
     Only uses basic shapes: Cube, Sphere, Cylinder, Cone.
     No USD references, no complex xform ops.
+
+    Uses unique prim paths per episode to avoid xformOp conflicts.
     """
     from pxr import UsdGeom, Gf
     from omni.isaac.core.utils.prims import create_prim
@@ -124,9 +126,10 @@ def create_simple_obstacles(stage, num_obstacles: int, robot_pos: tuple = (0, 0)
         # Random shape
         shape_type = random.choice(shape_types)
 
-        prim_path = f"/World/Obstacle_{i}"
+        # Use unique path per episode to avoid xformOp conflicts from reusing paths
+        prim_path = f"/World/Obstacle_ep{episode}_{i}"
 
-        # Create shape
+        # Create shape - create_prim handles the USD primitive creation
         prim = create_prim(prim_path, shape_type)
 
         if shape_type == 'Cube':
@@ -157,10 +160,13 @@ def create_simple_obstacles(stage, num_obstacles: int, robot_pos: tuple = (0, 0)
             cone.GetHeightAttr().Set(height)
             z_offset = height / 2
 
-        # Set position - clear existing xform ops first, then add translate
+        # Set position using the xformOps that create_prim already added
         xform = UsdGeom.Xformable(prim)
-        xform.ClearXformOpOrder()
-        xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z_offset))
+        # Get the existing translate op and set its value
+        for op in xform.GetOrderedXformOps():
+            if op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
+                op.Set(Gf.Vec3d(x, y, z_offset))
+                break
 
         # Set color
         gprim = UsdGeom.Gprim(prim)
@@ -430,7 +436,8 @@ def collect_synthetic_data(
                 stage,
                 actual_num_obstacles,
                 robot_pos=(rand_x, rand_y),
-                robot_yaw=rand_yaw
+                robot_yaw=rand_yaw,
+                episode=episode
             )
 
             # Randomize lighting and ground
