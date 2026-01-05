@@ -2,8 +2,8 @@
 """
 RunPod Setup Script for JetBot VLA Simulation (SIMPLE VERSION)
 
-Simplified script that uses ONLY basic primitive shapes for obstacles.
-No Nucleus assets, no complex USD references - just cubes, spheres, cylinders, cones.
+Simplified script that uses ONLY native Isaac Sim primitives for obstacles.
+Uses omni.isaac.core.objects which handles all USD/xform operations correctly.
 
 Usage:
     python runpod_setup_simple.py --download-assets
@@ -92,21 +92,15 @@ def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
     return str(jetbot_path)
 
 
-def create_simple_obstacles(stage, num_obstacles: int, robot_pos: tuple = (0, 0), robot_yaw: float = 0, episode: int = 0) -> List[str]:
+def create_native_obstacles(world, num_obstacles: int, robot_pos: tuple = (0, 0), robot_yaw: float = 0) -> List:
     """
-    Create simple primitive obstacles in the scene.
-    Only uses basic shapes: Cube, Sphere, Cylinder, Cone.
-    No USD references, no complex xform ops.
-
-    Uses unique prim paths per episode to avoid xformOp conflicts.
+    Create obstacles using native Isaac Sim objects.
+    Uses omni.isaac.core.objects which handles USD properly.
     """
-    from pxr import UsdGeom, Gf
-    from omni.isaac.core.utils.prims import create_prim
+    from omni.isaac.core.objects import DynamicCuboid, DynamicSphere, DynamicCylinder, VisualCuboid, VisualSphere, VisualCylinder
 
-    obstacle_paths = []
-
-    # Simple shape types - just primitives
-    shape_types = ['Cube', 'Sphere', 'Cylinder', 'Cone']
+    obstacles = []
+    shape_types = ['cube', 'sphere', 'cylinder']
 
     for i in range(num_obstacles):
         # Random position in robot's local frame (in front of robot)
@@ -121,68 +115,56 @@ def create_simple_obstacles(stage, num_obstacles: int, robot_pos: tuple = (0, 0)
 
         # Random color
         color_name = random.choice(list(OBSTACLE_COLORS.keys()))
-        color = OBSTACLE_COLORS[color_name]
+        color = np.array(OBSTACLE_COLORS[color_name])
 
         # Random shape
         shape_type = random.choice(shape_types)
 
-        # Use unique path per episode to avoid xformOp conflicts from reusing paths
-        prim_path = f"/World/Obstacle_ep{episode}_{i}"
+        prim_path = f"/World/Obstacle_{i}"
 
-        # Create shape - create_prim handles the USD primitive creation
-        prim = create_prim(prim_path, shape_type)
-
-        if shape_type == 'Cube':
+        if shape_type == 'cube':
             size = np.random.uniform(0.05, 0.12)
-            cube = UsdGeom.Cube(prim)
-            cube.GetSizeAttr().Set(size * 2)
-            z_offset = size
-
-        elif shape_type == 'Sphere':
-            size = np.random.uniform(0.04, 0.10)
-            sphere = UsdGeom.Sphere(prim)
-            sphere.GetRadiusAttr().Set(size)
-            z_offset = size
-
-        elif shape_type == 'Cylinder':
+            obstacle = VisualCuboid(
+                prim_path=prim_path,
+                name=f"obstacle_{i}",
+                position=np.array([x, y, size]),
+                scale=np.array([size * 2, size * 2, size * 2]),
+                color=color
+            )
+        elif shape_type == 'sphere':
+            radius = np.random.uniform(0.04, 0.10)
+            obstacle = VisualSphere(
+                prim_path=prim_path,
+                name=f"obstacle_{i}",
+                position=np.array([x, y, radius]),
+                radius=radius,
+                color=color
+            )
+        elif shape_type == 'cylinder':
             radius = np.random.uniform(0.03, 0.08)
             height = np.random.uniform(0.08, 0.20)
-            cylinder = UsdGeom.Cylinder(prim)
-            cylinder.GetRadiusAttr().Set(radius)
-            cylinder.GetHeightAttr().Set(height)
-            z_offset = height / 2
+            obstacle = VisualCylinder(
+                prim_path=prim_path,
+                name=f"obstacle_{i}",
+                position=np.array([x, y, height / 2]),
+                radius=radius,
+                height=height,
+                color=color
+            )
 
-        elif shape_type == 'Cone':
-            radius = np.random.uniform(0.03, 0.08)
-            height = np.random.uniform(0.10, 0.25)
-            cone = UsdGeom.Cone(prim)
-            cone.GetRadiusAttr().Set(radius)
-            cone.GetHeightAttr().Set(height)
-            z_offset = height / 2
+        world.scene.add(obstacle)
+        obstacles.append(obstacle)
 
-        # Set position using the xformOps that create_prim already added
-        xform = UsdGeom.Xformable(prim)
-        # Get the existing translate op and set its value
-        for op in xform.GetOrderedXformOps():
-            if op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
-                op.Set(Gf.Vec3d(x, y, z_offset))
-                break
-
-        # Set color
-        gprim = UsdGeom.Gprim(prim)
-        gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
-
-        obstacle_paths.append(prim_path)
-
-    return obstacle_paths
+    return obstacles
 
 
-def remove_obstacles(stage, obstacle_paths: List[str]):
-    """Remove obstacles from the scene."""
-    for path in obstacle_paths:
-        prim = stage.GetPrimAtPath(path)
-        if prim.IsValid():
-            stage.RemovePrim(path)
+def remove_native_obstacles(world, obstacles: List):
+    """Remove obstacles from the world."""
+    for obstacle in obstacles:
+        try:
+            world.scene.remove_object(obstacle.name)
+        except:
+            pass
 
 
 def randomize_lighting(stage):
@@ -323,9 +305,9 @@ def collect_synthetic_data(
     num_obstacles: int = 15
 ):
     """
-    Collect synthetic training data with simple primitive obstacles.
+    Collect synthetic training data using native Isaac Sim objects.
     """
-    print(f"Collecting synthetic data (SIMPLE version - primitives only)...")
+    print(f"Collecting synthetic data (SIMPLE version - native Isaac Sim objects)...")
     print(f"  Episodes: {num_episodes}")
     print(f"  Steps per episode: {steps_per_episode}")
     print(f"  Obstacles per scene: 5-{num_obstacles}")
@@ -370,7 +352,7 @@ def collect_synthetic_data(
             wheel_base=0.1
         )
 
-        # Create camera attached to robot
+        # Create camera attached to robot using native Isaac Sim Camera
         import omni.usd
         from pxr import UsdGeom, Gf
         from omni.isaac.core.utils.prims import create_prim
@@ -406,14 +388,15 @@ def collect_synthetic_data(
             world.step(render=True)
 
         total_samples = 0
-        obstacle_paths = []
+        obstacles = []
 
         for episode in range(num_episodes):
             # Remove previous obstacles
-            if obstacle_paths:
-                remove_obstacles(stage, obstacle_paths)
-                obstacle_paths = []
+            if obstacles:
+                remove_native_obstacles(world, obstacles)
+                obstacles = []
 
+            # Reset world clears physics state
             world.reset()
 
             # Random robot pose
@@ -430,14 +413,13 @@ def collect_synthetic_data(
                 orientation=orientation
             )
 
-            # Add simple obstacles
+            # Add obstacles using native Isaac Sim objects
             actual_num_obstacles = np.random.randint(5, num_obstacles + 1)
-            obstacle_paths = create_simple_obstacles(
-                stage,
+            obstacles = create_native_obstacles(
+                world,
                 actual_num_obstacles,
                 robot_pos=(rand_x, rand_y),
-                robot_yaw=rand_yaw,
-                episode=episode
+                robot_yaw=rand_yaw
             )
 
             # Randomize lighting and ground
@@ -458,8 +440,8 @@ def collect_synthetic_data(
             instruction = np.random.choice(instructions)
 
             scene_info = {
-                'num_obstacles': len(obstacle_paths),
-                'has_obstacles': len(obstacle_paths) > 0
+                'num_obstacles': len(obstacles),
+                'has_obstacles': len(obstacles) > 0
             }
 
             for step in range(steps_per_episode):
@@ -502,10 +484,10 @@ def collect_synthetic_data(
                 total_samples += 1
 
             print(f"Episode {episode+1}/{num_episodes} complete "
-                  f"({total_samples} samples, {len(obstacle_paths)} obstacles)")
+                  f"({total_samples} samples, {len(obstacles)} obstacles)")
 
-        if obstacle_paths:
-            remove_obstacles(stage, obstacle_paths)
+        if obstacles:
+            remove_native_obstacles(world, obstacles)
 
         print(f"\nData collection complete: {total_samples} samples saved to {save_path}")
         simulation_app.close()
@@ -518,7 +500,7 @@ def collect_synthetic_data(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='RunPod Setup for JetBot VLA Simulation (SIMPLE - Primitives Only)'
+        description='RunPod Setup for JetBot VLA Simulation (SIMPLE - Native Isaac Sim Objects)'
     )
     parser.add_argument(
         '--download-assets',
