@@ -185,16 +185,20 @@ def spawn_nucleus_asset(stage, asset_path: str, prim_path: str, position: tuple,
         from pxr import UsdGeom, Gf, Sdf
         from omni.isaac.core.utils.prims import create_prim, delete_prim
 
-        # Create an Xform prim and add reference to the asset
-        prim = create_prim(prim_path, "Xform")
-        prim.GetReferences().AddReference(asset_path)
+        # Create a parent Xform for our transform, then add child with reference
+        # This avoids conflicts with xform ops in the referenced USD file
+        parent_prim = create_prim(prim_path, "Xform")
 
-        # Set transform
-        xform = UsdGeom.Xformable(prim)
-        xform.ClearXformOpOrder()
+        # Set transform on parent (no conflicts since it's our own prim)
+        xform = UsdGeom.Xformable(parent_prim)
         xform.AddTranslateOp().Set(Gf.Vec3d(*position))
         xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, rotation_deg))
-        xform.AddScaleOp().Set(Gf.Vec3f(scale, scale, scale))
+        xform.AddScaleOp().Set(Gf.Vec3d(scale, scale, scale))  # Use Vec3d to match typical USD precision
+
+        # Add reference as a child prim to avoid xform op conflicts
+        child_path = prim_path + "/asset"
+        child_prim = create_prim(child_path, "Xform")
+        child_prim.GetReferences().AddReference(asset_path)
 
         return True
 
