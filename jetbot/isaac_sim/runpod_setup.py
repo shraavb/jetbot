@@ -387,11 +387,11 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             prim = create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(width)
-            # Clear existing xform ops and add scale to make it flat
+            # Set transform - use Vec3d for scale to match USD default precision
             xform_temp = UsdGeom.Xformable(prim)
             xform_temp.ClearXformOpOrder()
             xform_temp.AddTranslateOp().Set(Gf.Vec3d(x, y, z + height / 2))
-            xform_temp.AddScaleOp().Set(Gf.Vec3f(1.0, 1.0, height / width))
+            xform_temp.AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, height / width))
             gprim = UsdGeom.Gprim(prim)
             gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
             obstacle_paths.append(prim_path)
@@ -404,11 +404,11 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             prim = create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(width)
-            # Clear existing xform ops and add scale to make it tall
+            # Set transform - use Vec3d for scale to match USD default precision
             xform_temp = UsdGeom.Xformable(prim)
             xform_temp.ClearXformOpOrder()
             xform_temp.AddTranslateOp().Set(Gf.Vec3d(x, y, z + height / 2))
-            xform_temp.AddScaleOp().Set(Gf.Vec3f(1.0, 1.0, height / width))
+            xform_temp.AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, height / width))
             gprim = UsdGeom.Gprim(prim)
             gprim.GetDisplayColorAttr().Set([Gf.Vec3f(*color)])
             obstacle_paths.append(prim_path)
