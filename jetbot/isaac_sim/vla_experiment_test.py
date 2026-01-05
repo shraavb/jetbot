@@ -60,7 +60,10 @@ Usage:
 import sys
 import os
 import time
+import json
 import argparse
+from datetime import datetime
+from pathlib import Path
 import numpy as np
 import zmq
 from PIL import Image
@@ -79,6 +82,8 @@ def main():
     parser.add_argument('--instructions', nargs='+',
                         default=['go forward', 'turn left', 'turn right', 'go towards the red ball'],
                         help='Instructions to test')
+    parser.add_argument('--output', type=str, default=None,
+                        help='Output JSON file for results (default: results/vla_eval_TIMESTAMP.json)')
     args = parser.parse_args()
 
     # Setup Isaac Sim
@@ -194,10 +199,12 @@ def main():
             'instruction': instruction,
             'start_pos': start_pos.tolist(),
             'final_pos': final_pos.tolist(),
-            'distance_traveled': distance_traveled,
+            'distance_traveled': float(distance_traveled),
             'num_steps': len(actions),
-            'avg_left': np.mean([a[0] for a in actions]),
-            'avg_right': np.mean([a[1] for a in actions])
+            'avg_left': float(np.mean([a[0] for a in actions])),
+            'avg_right': float(np.mean([a[1] for a in actions])),
+            'actions': [(float(a[0]), float(a[1])) for a in actions],
+            'trajectory': trajectory
         }
         results.append(result)
 
@@ -211,6 +218,35 @@ def main():
         print(f'  "{r["instruction"]}": traveled {r["distance_traveled"]:.3f}m')
     print(f'{"="*60}')
 
+    # Save results to JSON
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        output_path = Path('results') / f'vla_eval_{timestamp}.json'
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    experiment_data = {
+        'timestamp': timestamp,
+        'config': {
+            'host': args.host,
+            'port': args.port,
+            'steps_per_instruction': args.steps,
+            'instructions': args.instructions
+        },
+        'results': results,
+        'summary': {
+            'total_instructions': len(results),
+            'avg_distance': float(np.mean([r['distance_traveled'] for r in results])),
+            'total_distance': float(sum(r['distance_traveled'] for r in results))
+        }
+    }
+
+    with open(output_path, 'w') as f:
+        json.dump(experiment_data, f, indent=2)
+
+    print(f'\nResults saved to: {output_path}')
     print('\nVLA evaluation complete!')
     simulation_app.close()
 
