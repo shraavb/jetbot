@@ -91,15 +91,17 @@ def download_jetbot_asset(output_dir: str = "/workspace/assets") -> str:
     return str(jetbot_path)
 
 
-def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0, 0), robot_yaw: float = 0) -> List[str]:
+def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0, 0), robot_yaw: float = 0, jetbot_asset_path: str = None) -> List[str]:
     """
     Create random colored obstacles in the scene, positioned in front of the robot.
+    Guarantees at least 2 JetBot obstacles if the asset is available.
 
     Args:
         stage: USD stage
         num_obstacles: Number of obstacles to create
         robot_pos: (x, y) position of robot in world coords
         robot_yaw: Robot's yaw angle in radians (0 = facing +X)
+        jetbot_asset_path: Path to JetBot USD asset for spawning other robots
 
     Returns list of prim paths for cleanup.
     """
@@ -107,6 +109,9 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
     from omni.isaac.core.utils.prims import create_prim
 
     obstacle_paths = []
+
+    # Guarantee at least 2 JetBots by forcing first 2 obstacles to be JetBots if asset exists
+    guaranteed_jetbots = 2 if jetbot_asset_path and Path(jetbot_asset_path).exists() else 0
 
     for i in range(num_obstacles):
         # Random position in robot's local frame (in front of robot)
@@ -128,12 +133,35 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
         color_name = np.random.choice(list(OBSTACLE_COLORS.keys()))
         color = OBSTACLE_COLORS[color_name]
 
-        # Random shape (cube or cylinder)
-        shape_type = np.random.choice(['Cube', 'Cylinder', 'Sphere'])
+        # Force first 2 obstacles to be JetBots, then random selection
+        if i < guaranteed_jetbots:
+            shape_type = 'OtherJetBot'
+        else:
+            # Include OtherJetBot in random selection with higher weight
+            shape_choices = ['Cube', 'Cylinder', 'Sphere', 'OtherJetBot', 'OtherJetBot']
+            shape_type = np.random.choice(shape_choices)
 
         prim_path = f"/World/Obstacle_{i}"
 
         # Create the shape
+        if shape_type == 'OtherJetBot' and jetbot_asset_path and Path(jetbot_asset_path).exists():
+            # Spawn another JetBot as obstacle
+            try:
+                prim = create_prim(prim_path, "Xform")
+                prim.GetReferences().AddReference(jetbot_asset_path)
+                # Random rotation for the other JetBot
+                random_yaw = np.random.uniform(-np.pi, np.pi)
+                xform = UsdGeom.Xformable(prim)
+                xform.ClearXformOpOrder()
+                xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z))
+                xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, np.degrees(random_yaw)))
+                obstacle_paths.append(prim_path)
+                continue  # Skip the rest of the loop for JetBot
+            except Exception as e:
+                # Fall back to a green cube if JetBot loading fails
+                shape_type = 'Cube'
+                color = OBSTACLE_COLORS['green']
+
         if shape_type == 'Cube':
             prim = create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
@@ -472,7 +500,8 @@ def collect_synthetic_data(
                     stage,
                     actual_num_obstacles,
                     robot_pos=(rand_x, rand_y),
-                    robot_yaw=rand_yaw
+                    robot_yaw=rand_yaw,
+                    jetbot_asset_path=jetbot_path
                 )
 
                 # Randomize lighting
