@@ -2,6 +2,12 @@
 
 <!--[<img src="https://img.shields.io/discord/553852754058280961.svg">](https://discord.gg/Ady6NtF) -->
 
+```bash
+ssh jetbot@<IP>
+sudo nmcli dev wifi connect "YourWiFiName" password "YourWiFiPassword"
+hostname -I
+
+
 > Looking for a quick way to get started with JetBot?  Many third party kits are [now available](https://jetbot.org/master/third_party_kits.html)!
 
 <img src="../..//wiki/images/jetson-jetbot-illustration_1600x1260.png" height="256">
