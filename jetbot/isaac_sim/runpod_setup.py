@@ -260,12 +260,31 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
     from omni.isaac.core.utils.prims import create_prim, delete_prim
 
     def safe_create_prim(prim_path: str, prim_type: str):
-        """Create a prim, deleting any existing prim at the path first."""
+        """Create a prim, deleting any existing prim at the path first.
+        Also clears any cached xform ops from the USD layer."""
         # Check if prim exists and delete it
         existing = stage.GetPrimAtPath(prim_path)
         if existing and existing.IsValid():
+            # Clear xform ops before deletion to avoid layer cache issues
+            try:
+                xformable = UsdGeom.Xformable(existing)
+                xformable.ClearXformOpOrder()
+                # Remove actual xform op attributes from layer
+                for prop_name in ['xformOp:translate', 'xformOp:rotateXYZ', 'xformOp:scale', 'xformOp:orient']:
+                    prop = existing.GetAttribute(prop_name)
+                    if prop and prop.IsValid():
+                        existing.RemoveProperty(prop_name)
+            except:
+                pass
             delete_prim(prim_path)
-        return create_prim(prim_path, prim_type)
+        prim = create_prim(prim_path, prim_type)
+        # Clear any inherited xform ops
+        try:
+            xformable = UsdGeom.Xformable(prim)
+            xformable.ClearXformOpOrder()
+        except:
+            pass
+        return prim
 
     obstacle_paths = []
 
@@ -338,16 +357,17 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
         prim_path = f"/World/Obstacle_{i}"
 
         # Create the shape based on type
+        # Use safe_create_prim for all shapes to handle reused prim paths
         if shape_type == 'Cube':
             size = np.random.uniform(0.05, 0.12)
-            prim = create_prim(prim_path, "Cube")
+            prim = safe_create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(size * 2)
             z_offset = size
 
         elif shape_type == 'Cylinder':
             size = np.random.uniform(0.04, 0.10)
-            prim = create_prim(prim_path, "Cylinder")
+            prim = safe_create_prim(prim_path, "Cylinder")
             cylinder = UsdGeom.Cylinder(prim)
             cylinder.GetRadiusAttr().Set(size)
             cylinder.GetHeightAttr().Set(size * 2)
@@ -355,7 +375,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
 
         elif shape_type == 'Sphere':
             size = np.random.uniform(0.04, 0.12)
-            prim = create_prim(prim_path, "Sphere")
+            prim = safe_create_prim(prim_path, "Sphere")
             sphere = UsdGeom.Sphere(prim)
             sphere.GetRadiusAttr().Set(size)
             z_offset = size
@@ -364,7 +384,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             # Traffic cone - tall and narrow
             radius = np.random.uniform(0.03, 0.06)
             height = np.random.uniform(0.15, 0.25)
-            prim = create_prim(prim_path, "Cone")
+            prim = safe_create_prim(prim_path, "Cone")
             cone = UsdGeom.Cone(prim)
             cone.GetRadiusAttr().Set(radius)
             cone.GetHeightAttr().Set(height)
@@ -380,7 +400,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             # Pole or barrier - thin and tall
             radius = np.random.uniform(0.02, 0.04)
             height = np.random.uniform(0.2, 0.35)
-            prim = create_prim(prim_path, "Cylinder")
+            prim = safe_create_prim(prim_path, "Cylinder")
             cylinder = UsdGeom.Cylinder(prim)
             cylinder.GetRadiusAttr().Set(radius)
             cylinder.GetHeightAttr().Set(height)
@@ -422,7 +442,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             # Pill/capsule shape
             radius = np.random.uniform(0.03, 0.06)
             height = np.random.uniform(0.08, 0.15)
-            prim = create_prim(prim_path, "Capsule")
+            prim = safe_create_prim(prim_path, "Capsule")
             capsule = UsdGeom.Capsule(prim)
             capsule.GetRadiusAttr().Set(radius)
             capsule.GetHeightAttr().Set(height)
@@ -432,7 +452,7 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             # Pyramid using cone with wider base
             radius = np.random.uniform(0.06, 0.10)
             height = np.random.uniform(0.08, 0.15)
-            prim = create_prim(prim_path, "Cone")
+            prim = safe_create_prim(prim_path, "Cone")
             cone = UsdGeom.Cone(prim)
             cone.GetRadiusAttr().Set(radius)
             cone.GetHeightAttr().Set(height)
@@ -442,13 +462,13 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
             # Spawn another JetBot as obstacle
             if jetbot_asset_path and Path(jetbot_asset_path).exists():
                 try:
-                    prim = create_prim(prim_path, "Xform")
+                    prim = safe_create_prim(prim_path, "Xform")
                     prim.GetReferences().AddReference(jetbot_asset_path)
                     z_offset = 0.0
                     # Random rotation for the other JetBot
+                    # Note: safe_create_prim already cleared xform ops
                     random_yaw = np.random.uniform(-np.pi, np.pi)
                     xform = UsdGeom.Xformable(prim)
-                    xform.ClearXformOpOrder()
                     xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z))
                     xform.AddRotateXYZOp().Set(Gf.Vec3d(0, 0, np.degrees(random_yaw)))
                     obstacle_paths.append(prim_path)
@@ -548,15 +568,15 @@ def create_random_obstacles(stage, num_obstacles: int = 3, robot_pos: tuple = (0
         else:
             # Default to cube
             size = np.random.uniform(0.05, 0.12)
-            prim = create_prim(prim_path, "Cube")
+            prim = safe_create_prim(prim_path, "Cube")
             cube = UsdGeom.Cube(prim)
             cube.GetSizeAttr().Set(size * 2)
             z_offset = size
 
         # Set position (skip if already handled by Nucleus assets or OtherJetBot)
+        # Note: safe_create_prim already clears xform ops, so we just add the new ones
         if shape_type not in ['OtherJetBot', 'NucleusPerson', 'NucleusProp', 'NucleusTraffic', 'NucleusRobot', 'FlatBox', 'TallBox']:
             xform = UsdGeom.Xformable(prim)
-            xform.ClearXformOpOrder()
             xform.AddTranslateOp().Set(Gf.Vec3d(x, y, z + z_offset))
 
             # Set color via displayColor
