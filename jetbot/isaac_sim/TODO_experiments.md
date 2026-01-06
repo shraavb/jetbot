@@ -1,9 +1,29 @@
 # VLA Language Grounding Experiments - TODO
 
 ## Prerequisites
-- [ ] Isaac Sim installed and configured
-- [ ] VLA server running (SmolVLA or OpenVLA)
-- [ ] Python environment with dependencies
+- [x] Isaac Sim installed and configured (on RunPod)
+- [x] VLA server running (SmolVLA)
+- [x] Python environment with dependencies
+
+## Completed Experiments
+
+### v1 Experiment (2026-01-05)
+- [x] Trained SmolVLA on 10k samples
+- [x] Evaluated on 4 instructions (go forward, turn left, turn right, red ball)
+- [x] Results: 50% accuracy (2/4) - turn right broken
+- [x] Documented in `experiments/results/vla_eval_20260105_v1.json`
+
+### v2 Experiment (2026-01-06)
+- [x] Collected new dataset: `dataset_turn_right_10k` (10k samples, ~23% right-turn instructions)
+- [x] Trained SmolVLA v2: 5 epochs, batch-size 16, val_loss=0.0394
+- [x] Evaluated on same 4 instructions
+- [x] Results: 75% accuracy (3/4) - turn right STILL broken
+- [x] Documented in `experiments/results/vla_eval_20260106_v2.json`
+
+### Key Finding
+- "turn right" produces R > L (left turn) in both v1 and v2
+- Visual grounding works: "red ball" correctly produces L > R (right turn)
+- **Next step**: Verify training data has correct motor values for "turn right" samples
 
 ## Scene Configurations Available
 
