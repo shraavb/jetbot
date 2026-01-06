@@ -1,0 +1,16 @@
+{
+  "instruction": "reverse",
+  "action": {
+    "left_speed": 0.27889019848974345,
+    "right_speed": 0.5434287672384159
+  },
+  "episode": 153,
+  "step": 43,
+  "timestamp": 1767642951.7271006,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 55,
+    "has_obstacles": true
+  }
+}

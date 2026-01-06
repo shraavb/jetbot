@@ -1,0 +1,120 @@
+{
+  "timestamp": "20260105_193637",
+  "config": {
+    "host": "localhost",
+    "port": 5555,
+    "steps_per_instruction": 50,
+    "instructions": ["go forward", "turn left", "turn right", "go towards the red ball"],
+    "model": "SmolVLM-500M-Instruct + JetBot Action Head",
+    "checkpoint": "models/smolvla_jetbot/best/jetbot_action_head.pt"
+  },
+  "results": [
+    {
+      "instruction": "go forward",
+      "start_pos": [-0.00, 0.00, 0.0],
+      "final_pos": [0.13, 0.00, 0.0],
+      "distance_traveled": 0.141,
+      "num_steps": 50,
+      "avg_left": 0.51,
+      "avg_right": 0.54,
+      "actions": [
+        [0.61, 0.38], [0.58, 0.56], [0.58, 0.41], [0.60, 0.42], [0.67, 0.30],
+        [0.46, 0.60], [0.43, 0.56], [0.50, 0.61], [0.60, 0.42], [0.49, 0.57]
+      ],
+      "trajectory": [
+        [-0.00, 0.00], [0.01, 0.00], [0.03, 0.00], [0.04, 0.00], [0.06, 0.00],
+        [0.07, 0.00], [0.08, 0.00], [0.10, 0.00], [0.11, 0.00], [0.13, 0.00]
+      ],
+      "assessment": "correct",
+      "notes": "Both motors positive and similar, robot moves forward in straight line (y stays at 0.00)"
+    },
+    {
+      "instruction": "turn left",
+      "start_pos": [-0.00, 0.00, 0.0],
+      "final_pos": [0.11, 0.06, 0.0],
+      "distance_traveled": 0.141,
+      "num_steps": 50,
+      "avg_left": 0.39,
+      "avg_right": 0.72,
+      "actions": [
+        [0.53, 0.79], [0.58, 0.71], [0.17, 0.85], [-0.12, 0.85], [0.17, 0.85],
+        [0.55, 0.60], [0.56, 0.64], [0.53, 0.65], [0.54, 0.64], [0.54, 0.69]
+      ],
+      "trajectory": [
+        [-0.00, 0.00], [0.01, 0.00], [0.03, 0.00], [0.04, 0.01], [0.05, 0.01],
+        [0.06, 0.02], [0.08, 0.03], [0.09, 0.04], [0.10, 0.05], [0.11, 0.06]
+      ],
+      "assessment": "correct",
+      "notes": "Right motor consistently > Left motor (R-L diff = +0.33). Robot curves left (y increases from 0.00 to 0.06). Strong turn signal at steps 10-20 with L as low as -0.12 and R at 0.85"
+    },
+    {
+      "instruction": "turn right",
+      "start_pos": [-0.00, 0.00, 0.0],
+      "final_pos": [0.11, 0.05, 0.0],
+      "distance_traveled": 0.129,
+      "num_steps": 50,
+      "avg_left": 0.34,
+      "avg_right": 0.68,
+      "actions": [
+        [0.49, 0.77], [0.49, 0.60], [0.31, 0.80], [0.13, 0.67], [-0.24, 0.56],
+        [0.05, 0.59], [0.51, 0.71], [0.51, 0.71], [0.61, 0.65], [0.53, 0.65]
+      ],
+      "trajectory": [
+        [-0.00, 0.00], [0.01, 0.00], [0.03, 0.00], [0.04, 0.00], [0.05, 0.01],
+        [0.06, 0.01], [0.07, 0.02], [0.08, 0.03], [0.09, 0.04], [0.11, 0.05]
+      ],
+      "assessment": "incorrect",
+      "notes": "CRITICAL BUG: Right motor > Left motor (R-L diff = +0.34), causing LEFT turn instead of right. Robot curves LEFT (y increases to 0.05) - identical pattern to 'turn left' instruction. Model cannot differentiate turn directions."
+    },
+    {
+      "instruction": "go towards the red ball",
+      "start_pos": [-0.00, 0.00, 0.0],
+      "final_pos": [0.05, -0.01, 0.0],
+      "distance_traveled": 0.055,
+      "num_steps": 50,
+      "avg_left": 0.31,
+      "avg_right": 0.10,
+      "actions": [
+        [0.25, 0.23], [0.35, 0.05], [0.36, 0.11], [0.41, 0.06], [0.34, 0.13],
+        [0.36, 0.10], [0.31, 0.12], [0.27, 0.16], [0.33, 0.15], [0.28, 0.21]
+      ],
+      "trajectory": [
+        [-0.00, 0.00], [0.00, 0.00], [0.01, -0.00], [0.01, -0.00], [0.02, -0.00],
+        [0.02, -0.00], [0.03, -0.01], [0.04, -0.01], [0.04, -0.01], [0.05, -0.01]
+      ],
+      "assessment": "partial",
+      "notes": "Interesting: Left motor > Right motor (L-R diff = +0.21), causing slight RIGHT curve (y goes negative). This is the ONLY instruction that produces right-turning behavior! Robot moves slowly toward target area. Red ball was at [1.5, 0.5, 0.1] - unclear if visually grounded or just learned behavior."
+    }
+  ],
+  "summary": {
+    "total_instructions": 4,
+    "correct": 2,
+    "incorrect": 1,
+    "partial": 1,
+    "accuracy": 0.5,
+    "avg_distance": 0.1165,
+    "total_distance": 0.466
+  },
+  "analysis": {
+    "working_well": [
+      "Forward motion: Both motors activate with similar values, straight trajectory",
+      "Turn left: Strong differential (R > L), clear leftward curve in trajectory"
+    ],
+    "issues": [
+      "Turn right: Model outputs SAME pattern as turn left (R > L instead of L > R)",
+      "Turn right trajectory is nearly identical to turn left trajectory",
+      "Visual grounding unclear - 'red ball' instruction produces right turn but may not be visually driven"
+    ],
+    "interesting_observations": [
+      "Only 'go towards red ball' produces L > R (right-turning) behavior",
+      "Turn instructions show strong signals (L going negative at steps 15-20)",
+      "Model has learned turning behavior but not direction differentiation"
+    ],
+    "recommendations": [
+      "Collect explicit 'turn right' training data with L > R motor patterns",
+      "Verify training data distribution - may have imbalanced left/right examples",
+      "Consider data augmentation: mirror left turn examples to create right turns",
+      "Add more visual grounding examples with varied target positions"
+    ]
+  }
+}

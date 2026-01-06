@@ -1,0 +1,16 @@
+{
+  "instruction": "go backward",
+  "action": {
+    "left_speed": -0.4007461783498649,
+    "right_speed": -0.35414535949862236
+  },
+  "episode": 199,
+  "step": 5,
+  "timestamp": 1767643226.7611725,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 16,
+    "has_obstacles": true
+  }
+}

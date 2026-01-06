@@ -1,0 +1,110 @@
+# SmolVLA JetBot Configuration v1
+# Training config for SmolVLM-500M-Instruct with action head
+
+experiment:
+  name: "smolvla_jetbot_v1"
+  date: "2026-01-05"
+  description: "Initial SmolVLA fine-tuning on 10k Isaac Sim samples"
+
+# Base model configuration
+model:
+  base_model_id: "HuggingFaceTB/SmolVLM-500M-Instruct"
+  vision_encoder: "SigLIP-400M"
+  language_model: "SmolLM-360M"
+  hidden_size: 960
+  frozen_backbone: true
+
+# Action head configuration
+action_head:
+  input_size: 960        # matches hidden_size from SmolVLM
+  intermediate_size: 128
+  output_size: 2         # left_motor, right_motor
+  dropout: 0.1
+  activation: "relu"
+  output_activation: "tanh"  # outputs in [-1, 1]
+
+# Training configuration
+training:
+  data_dir: "dataset_vla"
+  output_dir: "models/smolvla_jetbot"
+
+  # Hyperparameters
+  epochs: 20
+  batch_size: 2
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  gradient_clip: 1.0
+
+  # Optimizer
+  optimizer: "adamw"
+  scheduler: "onecycle"
+
+  # Precision
+  use_fp16: true
+  gradient_checkpointing: true
+
+  # Checkpointing
+  save_every_n_epochs: 5
+  log_every_n_steps: 10
+
+# Dataset configuration
+data:
+  primary_dataset: "dataset_vla"
+  primary_samples: 10000
+
+  additional_datasets:
+    - name: "dataset_vla_synthetic"
+      samples: 1000
+      description: "Initial synthetic data"
+    - name: "dataset_vla_synthetic_large"
+      samples: 2000
+      description: "Extended synthetic data"
+
+  train_val_split: 0.9
+  image_size: [224, 224]
+  jpeg_quality: 85
+
+  # Instruction distribution (approximate)
+  instruction_distribution:
+    forward_motion: 0.25
+    left_turns: 0.18
+    right_turns: 0.18
+    obstacle_avoidance: 0.18
+    object_approach: 0.12
+    stop_wait: 0.06
+    other: 0.03
+
+# Evaluation configuration
+evaluation:
+  steps_per_instruction: 50
+  default_instructions:
+    - "go forward"
+    - "turn left"
+    - "turn right"
+    - "go towards the red ball"
+
+  metrics:
+    - "distance_traveled"
+    - "avg_left_motor"
+    - "avg_right_motor"
+    - "trajectory_analysis"
+
+# Hardware requirements
+hardware:
+  training:
+    gpu: "NVIDIA GPU (RTX 4090 recommended)"
+    vram: "16GB+"
+    training_time: "~2-4 hours for 20 epochs"
+
+  inference:
+    gpu: "CUDA-capable GPU"
+    vram: "4GB+"
+    latency: "~50-100ms per frame"
+
+# Known issues
+known_issues:
+  - "Turn right produces left-turning behavior"
+  - "Limited visual grounding for object targets"
+  - "No speed differentiation (slow vs fast)"
+  - "Similar actions for different visual scenes"

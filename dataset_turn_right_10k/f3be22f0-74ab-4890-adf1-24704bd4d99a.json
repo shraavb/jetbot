@@ -1,0 +1,16 @@
+{
+  "instruction": "rotate right",
+  "action": {
+    "left_speed": 0.5289160518285656,
+    "right_speed": 0.2072942233210151
+  },
+  "episode": 182,
+  "step": 35,
+  "timestamp": 1767643124.5197365,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 51,
+    "has_obstacles": true
+  }
+}

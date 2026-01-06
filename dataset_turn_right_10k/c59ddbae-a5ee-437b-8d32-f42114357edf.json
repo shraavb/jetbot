@@ -1,0 +1,16 @@
+{
+  "instruction": "move back",
+  "action": {
+    "left_speed": -0.27818762989960666,
+    "right_speed": -0.2489066656144503
+  },
+  "episode": 119,
+  "step": 16,
+  "timestamp": 1767642742.8111236,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 28,
+    "has_obstacles": true
+  }
+}

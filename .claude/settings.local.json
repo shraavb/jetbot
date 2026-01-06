@@ -32,7 +32,10 @@
       "Bash(for d in /Users/shraavastibhat/jetbot-4/dataset_*)",
       "Bash(git check-ignore:*)",
       "Bash(curl:*)",
-      "Bash(gzip:*)"
+      "Bash(gzip:*)",
+      "Bash(git -C /Users/shraavastibhat/jetbot-4 log --oneline --all)",
+      "Bash(wc:*)",
+      "Bash(python:*)"
     ]
   }
 }

@@ -1,0 +1,105 @@
+{
+  "timestamp": "20260106_030500",
+  "config": {
+    "host": "localhost",
+    "port": 5555,
+    "steps_per_instruction": 50,
+    "instructions": ["go forward", "turn left", "turn right", "go towards the red ball"],
+    "model": "SmolVLM-500M-Instruct + JetBot Action Head v2",
+    "checkpoint": "models/smolvla_jetbot_v2/best/jetbot_action_head.pt",
+    "training_data": "dataset_turn_right_10k (10,000 samples with improved turn differentiation)",
+    "training_epochs": 5,
+    "best_val_loss": 0.0394
+  },
+  "results": [
+    {
+      "instruction": "go forward",
+      "distance_traveled": 0.236,
+      "num_steps": 50,
+      "avg_left": 0.85,
+      "avg_right": 0.94,
+      "assessment": "correct",
+      "notes": "Both motors high and similar (R-L diff=+0.09), robot moves forward. Improved from v1 (0.51, 0.54)."
+    },
+    {
+      "instruction": "turn left",
+      "distance_traveled": 0.191,
+      "num_steps": 50,
+      "avg_left": 0.57,
+      "avg_right": 0.92,
+      "assessment": "correct",
+      "notes": "R > L (diff=+0.35), robot turns left correctly. Similar to v1 (0.39, 0.72, diff=+0.33)."
+    },
+    {
+      "instruction": "turn right",
+      "distance_traveled": 0.208,
+      "num_steps": 50,
+      "avg_left": 0.64,
+      "avg_right": 0.95,
+      "assessment": "incorrect",
+      "notes": "STILL BROKEN: R > L (diff=+0.31), robot turns LEFT instead of right. Same issue as v1 (0.34, 0.68, diff=+0.34). Model cannot differentiate 'turn right' from 'turn left' language."
+    },
+    {
+      "instruction": "go towards the red ball",
+      "distance_traveled": 0.166,
+      "num_steps": 50,
+      "avg_left": 0.86,
+      "avg_right": 0.45,
+      "assessment": "correct",
+      "notes": "L > R (diff=-0.41), robot turns right towards ball. IMPROVED from v1 (0.31, 0.10). Stronger right-turn signal and visual grounding appears to work."
+    }
+  ],
+  "summary": {
+    "total_instructions": 4,
+    "correct": 3,
+    "incorrect": 1,
+    "accuracy": 0.75,
+    "avg_distance": 0.20025,
+    "total_distance": 0.801
+  },
+  "comparison_v1_vs_v2": {
+    "go_forward": {
+      "v1": {"avg_left": 0.51, "avg_right": 0.54, "diff": 0.03},
+      "v2": {"avg_left": 0.85, "avg_right": 0.94, "diff": 0.09},
+      "change": "IMPROVED - stronger forward motion"
+    },
+    "turn_left": {
+      "v1": {"avg_left": 0.39, "avg_right": 0.72, "diff": 0.33},
+      "v2": {"avg_left": 0.57, "avg_right": 0.92, "diff": 0.35},
+      "change": "SIMILAR - both work correctly"
+    },
+    "turn_right": {
+      "v1": {"avg_left": 0.34, "avg_right": 0.68, "diff": 0.34},
+      "v2": {"avg_left": 0.64, "avg_right": 0.95, "diff": 0.31},
+      "change": "STILL BROKEN - both turn left instead of right"
+    },
+    "go_towards_red_ball": {
+      "v1": {"avg_left": 0.31, "avg_right": 0.10, "diff": -0.21},
+      "v2": {"avg_left": 0.86, "avg_right": 0.45, "diff": -0.41},
+      "change": "IMPROVED - stronger right turn and movement"
+    }
+  },
+  "analysis": {
+    "working_well": [
+      "Forward motion: Both motors activate strongly (0.85, 0.94), faster than v1",
+      "Turn left: Strong differential (R > L), clear leftward behavior",
+      "Visual grounding: 'red ball' instruction produces correct right turn with stronger signal than v1"
+    ],
+    "issues": [
+      "Turn right: Model STILL outputs same pattern as turn left (R > L instead of L > R)",
+      "Language differentiation: Model cannot distinguish 'turn right' from 'turn left' as text commands",
+      "Training data may have inconsistent labeling for turn directions"
+    ],
+    "interesting_observations": [
+      "V2 overall motor outputs are higher/more confident than v1",
+      "Visual grounding (red ball) works better than pure language (turn right)",
+      "Model may be learning visual cues better than language differentiation"
+    ],
+    "recommendations": [
+      "URGENT: Verify training data - check that 'turn right' samples actually have L > R motor values",
+      "Consider explicit data augmentation: mirror left turns to create right turns programmatically",
+      "Try contrastive training: pair 'turn left' and 'turn right' examples in same batch",
+      "May need to increase language embedding influence vs visual features"
+    ]
+  }
+}

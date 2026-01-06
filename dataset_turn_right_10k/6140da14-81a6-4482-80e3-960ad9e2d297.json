@@ -1,0 +1,16 @@
+{
+  "instruction": "drive straight ahead",
+  "action": {
+    "left_speed": 0.47188379898490346,
+    "right_speed": 0.46315714527378044
+  },
+  "episode": 132,
+  "step": 49,
+  "timestamp": 1767642824.9785185,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 69,
+    "has_obstacles": true
+  }
+}

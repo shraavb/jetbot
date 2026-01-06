@@ -1,0 +1,16 @@
+{
+  "instruction": "go forward",
+  "action": {
+    "left_speed": 0.5048718379023234,
+    "right_speed": 0.6205873505047366
+  },
+  "episode": 118,
+  "step": 48,
+  "timestamp": 1767642739.677681,
+  "source": "isaac_sim",
+  "domain_randomization": true,
+  "scene": {
+    "num_obstacles": 65,
+    "has_obstacles": true
+  }
+}

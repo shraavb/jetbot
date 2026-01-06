@@ -12,11 +12,14 @@ Usage:
 """
 
 import os
+import json
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from typing import Optional, Dict
+from typing import Optional, Dict, List
+from datetime import datetime
 import yaml
 import argparse
 from tqdm import tqdm
@@ -86,6 +89,16 @@ class SmolVLATrainer:
         self.processor = None
         self.action_head = None
         self.scaler = None
+
+        # Training log for tracking curves
+        self.training_log: Dict = {
+            'experiment_name': 'smolvla_jetbot',
+            'start_time': None,
+            'end_time': None,
+            'config': {},
+            'epochs': [],
+            'steps': []
+        }
 
     def setup(self):
         """Load model and initialize training components."""
@@ -274,6 +287,22 @@ class SmolVLATrainer:
         # Training loop
         best_val_loss = float('inf')
         global_step = 0
+
+        # Initialize training log
+        self.training_log['start_time'] = datetime.now().isoformat()
+        self.training_log['config'] = {
+            'model_id': self.model_id,
+            'num_epochs': config['num_epochs'],
+            'batch_size': config['batch_size'],
+            'learning_rate': config['learning_rate'],
+            'weight_decay': config['weight_decay'],
+            'warmup_ratio': config['warmup_ratio'],
+            'total_steps': total_steps,
+            'train_samples': len(train_dataset),
+            'val_samples': len(val_dataset) if val_dataset else 0,
+            'device': self.device,
+            'use_fp16': self.use_fp16
+        }
         start_epoch = 0
 
         # Load full training state if resuming
@@ -344,15 +373,32 @@ class SmolVLATrainer:
                 epoch_loss += loss.item()
                 global_step += 1
 
+                # Log step-level metrics
+                if global_step % config['log_every_n_steps'] == 0:
+                    self.training_log['steps'].append({
+                        'step': global_step,
+                        'epoch': epoch + 1,
+                        'loss': loss.item(),
+                        'lr': scheduler.get_last_lr()[0]
+                    })
+
                 pbar.set_postfix({'loss': f'{loss.item():.4f}'})
 
             avg_train_loss = epoch_loss / len(train_loader)
             print(f"Epoch {epoch+1} - Train Loss: {avg_train_loss:.4f}", flush=True)
 
+            # Log epoch-level metrics
+            epoch_log = {
+                'epoch': epoch + 1,
+                'train_loss': avg_train_loss,
+                'lr': scheduler.get_last_lr()[0]
+            }
+
             # Validation
             if val_loader:
                 val_loss = self.validate(val_loader)
                 print(f"Epoch {epoch+1} - Val Loss: {val_loss:.4f}", flush=True)
+                epoch_log['val_loss'] = val_loss
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
@@ -360,10 +406,21 @@ class SmolVLATrainer:
                               best_val_loss=best_val_loss, global_step=global_step)
                     print(f"Saved best model (val_loss={val_loss:.4f})", flush=True)
 
+            self.training_log['epochs'].append(epoch_log)
+
             # Periodic checkpoint (with full state for resumption)
             if (epoch + 1) % config['save_every_n_epochs'] == 0:
                 self.save(f"checkpoint_epoch_{epoch+1}", epoch=epoch, optimizer=optimizer,
                           scheduler=scheduler, best_val_loss=best_val_loss, global_step=global_step)
+
+        # Finalize and save training log
+        self.training_log['end_time'] = datetime.now().isoformat()
+        self.training_log['final_metrics'] = {
+            'best_val_loss': best_val_loss if best_val_loss != float('inf') else None,
+            'final_train_loss': avg_train_loss,
+            'total_steps': global_step
+        }
+        self._save_training_log()
 
         # Save final model
         self.save("final", epoch=epoch, optimizer=optimizer, scheduler=scheduler,
@@ -387,6 +444,23 @@ class SmolVLATrainer:
                 total_loss += loss.item()
 
         return total_loss / len(val_loader)
+
+    def _save_training_log(self):
+        """Save training log to JSON file."""
+        log_dir = Path('experiments/logs')
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        log_path = log_dir / f"training_log_{timestamp}.json"
+
+        with open(log_path, 'w') as f:
+            json.dump(self.training_log, f, indent=2)
+
+        # Also save to output directory
+        with open(self.output_dir / "training_log.json", 'w') as f:
+            json.dump(self.training_log, f, indent=2)
+
+        print(f"Training log saved to {log_path}", flush=True)
 
     def save(self, name: str, epoch: int = None, optimizer=None, scheduler=None,
              best_val_loss: float = None, global_step: int = None):

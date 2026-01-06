@@ -1,0 +1,6 @@
+action_dim: 2
+best_val_loss: 0.03935904298273344
+epoch: 4
+global_step: 2815
+hidden_size: 960
+model_id: HuggingFaceTB/SmolVLM-500M-Instruct
